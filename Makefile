@@ -11,7 +11,7 @@ OBJDUMP = i686-elf-objdump
 
 # Compiler flags
 CFLAGS = -ffreestanding -fno-builtin -Wall -Wextra -pedantic
-CFLAGS += -std=c99 -Iinclude -m32 -march=i386
+CFLAGS += -std=c99 -I. -Iinclude -m32 -march=i386
 
 # Assembly flags
 ASFLAGS = -f elf32
@@ -46,7 +46,14 @@ KERNEL_C_SOURCES = \
     $(ARCH)/idt.c \
     $(ARCH)/isr.c \
     $(ARCH)/pic.c \
-    $(ARCH)/hwirq.c
+    $(ARCH)/context.c \
+    mm/pmm.c \
+    mm/paging.c \
+    mm/vmm.c \
+    mm/heap.c \
+    $(KERNEL)/task.c \
+    fs/elf.c \
+    libk/string.c
 
 KERNEL_OBJ = $(patsubst %.c,$(BUILD)/%.o,$(KERNEL_C_SOURCES))
 KERNEL_OBJ += $(patsubst %.asm,$(BUILD)/%.o,$(KERNEL_ASM_SOURCES))

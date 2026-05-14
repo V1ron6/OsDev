@@ -124,4 +124,20 @@ static inline void write_cr3(uint32_t val) {
     __asm__ volatile("movl %0, %%cr3" : : "r"(val));
 }
 
+static inline uint32_t read_cr2(void) {
+    uint32_t val;
+    __asm__ volatile("movl %%cr2, %0" : "=r"(val));
+    return val;
+}
+
+static inline uint32_t read_eip(void) {
+    uint32_t val;
+    __asm__ volatile("movl $., %0" : "=r"(val));
+    return val;
+}
+
+static inline void invlpg(uint32_t vaddr) {
+    __asm__ volatile("invlpg (%0)" : : "r"(vaddr));
+}
+
 #endif /* _BYTEBANDIT_X86_H */
