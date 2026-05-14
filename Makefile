@@ -33,11 +33,20 @@ KERNEL_BIN = $(BUILD)/kernel.bin
 OS_IMAGE = $(BUILD)/bytebandit.iso
 
 # Source files
-KERNEL_ASM_SOURCES = $(KERNEL)/entry.asm
+KERNEL_ASM_SOURCES = \
+    $(KERNEL)/entry.asm \
+    $(ARCH)/exceptions.asm \
+    $(ARCH)/irq.asm
+
 KERNEL_C_SOURCES = \
     $(KERNEL)/main.c \
     $(KERNEL)/panic.c \
-    $(DRIVERS)/vga.c
+    $(DRIVERS)/vga.c \
+    $(DRIVERS)/serial.c \
+    $(ARCH)/idt.c \
+    $(ARCH)/isr.c \
+    $(ARCH)/pic.c \
+    $(ARCH)/hwirq.c
 
 KERNEL_OBJ = $(patsubst %.c,$(BUILD)/%.o,$(KERNEL_C_SOURCES))
 KERNEL_OBJ += $(patsubst %.asm,$(BUILD)/%.o,$(KERNEL_ASM_SOURCES))
@@ -65,6 +74,18 @@ $(BUILD)/%.o: %.c
 
 # Assemble kernel entry
 $(BUILD)/$(KERNEL)/entry.o: $(KERNEL)/entry.asm
+	@mkdir -p $(dir $@)
+	@echo "[ASM] $<"
+	$(AS) $(ASFLAGS) -o $@ $<
+
+# Assemble CPU exceptions
+$(BUILD)/$(ARCH)/exceptions.o: $(ARCH)/exceptions.asm
+	@mkdir -p $(dir $@)
+	@echo "[ASM] $<"
+	$(AS) $(ASFLAGS) -o $@ $<
+
+# Assemble hardware IRQs
+$(BUILD)/$(ARCH)/irq.o: $(ARCH)/irq.asm
 	@mkdir -p $(dir $@)
 	@echo "[ASM] $<"
 	$(AS) $(ASFLAGS) -o $@ $<
