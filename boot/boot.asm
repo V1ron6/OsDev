@@ -7,6 +7,9 @@
 KERNEL_LOAD_SEG  equ 0x1000
 KERNEL_LOAD_OFF  equ 0x0000
 KERNEL_LOAD_ADDR equ 0x00010000
+STACK_SEG        equ 0x9000
+STACK_TOP        equ 0xFFFE
+STACK_PM_ADDR    equ (STACK_SEG << 4) + STACK_TOP
 
 %ifndef KERNEL_SECTORS
 %error KERNEL_SECTORS must be defined by the build system
@@ -20,9 +23,9 @@ start:
     mov ss, ax
 
     ; Initialize a safe real-mode stack away from the boot sector.
-    mov ax, 0x9000
+    mov ax, STACK_SEG
     mov ss, ax
-    mov sp, 0x0000
+    mov sp, STACK_TOP
 
     mov [boot_drive], dl
 
@@ -163,7 +166,7 @@ protected_mode_entry:
     mov gs, ax
     mov ss, ax
 
-    mov esp, 0x90000
+    mov esp, STACK_PM_ADDR
 
     jmp KERNEL_LOAD_ADDR
 
