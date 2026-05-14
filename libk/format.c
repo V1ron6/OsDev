@@ -9,8 +9,8 @@ void hex32_to_str(uint32_t value, char *buffer)
     buffer[1] = 'x';
 
     for (int i = 0; i < HEX_NIBBLES; ++i) {
-        uint32_t shift = (uint32_t)HEX_SHIFT_START - (uint32_t)(i * 4);
-        buffer[2 + i] = hex_digits[(value >> shift) & 0xF];
+        int shift = HEX_SHIFT_START - (i * 4);
+        buffer[2 + i] = hex_digits[(value >> (uint32_t)shift) & 0xF];
     }
 
     buffer[10] = '\0';
