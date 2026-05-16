@@ -21,6 +21,8 @@
 #include "mm/pmm.h"
 #include "mm/paging.h"
 #include "mm/heap.h"
+#include "arch/x86/gdt.h"
+#include "arch/x86/tss.h"
 
 void kernel_main(void) {
     /* Stage 1: Initialize VGA for visual feedback */
@@ -38,30 +40,43 @@ void kernel_main(void) {
     serial_puts("[SERIAL] COM1 initialized at 115200 baud\n");
     vga_puts("        [OK] Serial port ready\n\n");
     
-    /* Stage 3: Initialize interrupt system
+    /* Stage 3: Initialize GDT (Global Descriptor Table)
+     *
+     * GDT defines memory segments for protected mode:
+     * - Kernel code/data (ring 0)
+     * - User code/data (ring 3) for future privilege transitions
+     * - TSS descriptor for task state segment
+     *
+     * Must be set up before IDT so we can use user/kernel selectors.
+     */
+    vga_puts("[3/5] Initializing GDT (Global Descriptor Table)...\n");
+    gdt_init();
+    vga_puts("        [OK] GDT loaded with user/kernel segments\n\n");
+    
+    /* Stage 4: Initialize interrupt system
      *
      * IDT must be set up before PIC, so we know where to install IRQ handlers.
      */
-    vga_puts("[2/5] Initializing IDT and exception handlers...\n");
+    vga_puts("[4/5] Initializing IDT and exception handlers...\n");
     idt_init();
     vga_puts("        [OK] IDT installed, 256 entries ready\n\n");
     
-    /* Stage 4: Remap PIC to non-conflicting vectors
+    /* Stage 5: Remap PIC to non-conflicting vectors
      *
      * PIC must be remapped before IRQ system can install handlers.
      * This moves hardware IRQs from vectors 8-15 (conflicts with exceptions)
      * to vectors 0x20-0x2F (standard x86 location).
      */
-    vga_puts("[3/5] Initializing PIC (remapping interrupts)...\n");
+    vga_puts("[5/6] Initializing PIC (remapping interrupts)...\n");
     pic_init();
     vga_puts("        [OK] PIC remapped to vectors 0x20-0x2F\n\n");
     
-    /* Stage 5: Initialize hardware IRQ handler infrastructure
+    /* Stage 6: Initialize hardware IRQ handler infrastructure
      *
      * Installs IRQ stubs in IDT for all 16 hardware interrupts.
      * Does not enable any specific IRQs yet (drivers will do that).
      */
-    vga_puts("[4/5] Initializing IRQ handler system...\n");
+    vga_puts("[6/6] Initializing IRQ handler system...\n");
     irq_init();
     vga_puts("        [OK] 16 IRQ handlers ready\n\n");
     
@@ -99,6 +114,18 @@ void kernel_main(void) {
         vga_puts("[7/7] Initializing kernel heap...\n");
         heap_init();
         vga_puts("        [OK] Heap ready\n\n");
+        
+        /* Stage 8: Initialize Task State Segment (TSS)
+         *
+         * TSS is used for privilege transitions between ring 0 (kernel)
+         * and ring 3 (user mode). When user code triggers an interrupt,
+         * the CPU loads the kernel stack pointer from the TSS.
+         *
+         * Must be initialized after heap (uses kmalloc for TSS structure).
+         */
+        vga_puts("[8/8] Initializing TSS for privilege transitions...\n");
+        tss_init();
+        vga_puts("        [OK] TSS ready for user mode transitions\n\n");
     
     /* Bootstrap complete - display status */
     vga_puts("Bootstrap complete\n\n");
