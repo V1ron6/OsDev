@@ -35,6 +35,7 @@ OS_IMAGE = $(BUILD)/bytebandit.iso
 # Source files
 KERNEL_ASM_SOURCES = \
     $(KERNEL)/entry.asm \
+    $(KERNEL)/syscall_entry.asm \
     $(ARCH)/exceptions.asm \
     $(ARCH)/irq.asm \
     $(ARCH)/usermode.asm
@@ -42,6 +43,7 @@ KERNEL_ASM_SOURCES = \
 KERNEL_C_SOURCES = \
     $(KERNEL)/main.c \
     $(KERNEL)/panic.c \
+    $(KERNEL)/syscall.c \
     $(DRIVERS)/vga.c \
     $(DRIVERS)/serial.c \
     $(ARCH)/idt.c \
@@ -86,6 +88,12 @@ $(BUILD)/%.o: %.c
 
 # Assemble kernel entry
 $(BUILD)/$(KERNEL)/entry.o: $(KERNEL)/entry.asm
+	@mkdir -p $(dir $@)
+	@echo "[ASM] $<"
+	$(AS) $(ASFLAGS) -o $@ $<
+
+# Assemble syscall entry
+$(BUILD)/$(KERNEL)/syscall_entry.o: $(KERNEL)/syscall_entry.asm
 	@mkdir -p $(dir $@)
 	@echo "[ASM] $<"
 	$(AS) $(ASFLAGS) -o $@ $<

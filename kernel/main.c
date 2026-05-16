@@ -23,6 +23,7 @@
 #include "mm/heap.h"
 #include "arch/x86/gdt.h"
 #include "arch/x86/tss.h"
+#include "kernel/syscall.h"
 
 void kernel_main(void) {
     /* Stage 1: Initialize VGA for visual feedback */
@@ -80,13 +81,22 @@ void kernel_main(void) {
     irq_init();
     vga_puts("        [OK] 16 IRQ handlers ready\n\n");
     
-        /* Stage 5: Initialize physical memory manager
+    /* Stage 7: Initialize syscall interface
+     *
+     * Installs int 0x80 handler for software interrupts.
+     * User-space programs use "int 0x80" to request kernel services.
+     */
+    vga_puts("[7/9] Initializing syscall interface (int 0x80)...\n");
+    syscall_init();
+    vga_puts("        [OK] Syscall handler ready\n\n");
+    
+        /* Stage 8: Initialize physical memory manager
          *
          * PMM tracks which 4KB frames are allocated/free.
          * Must be initialized before paging (which allocates page tables).
          * Reserves kernel, bootloader, VRAM, and BIOS regions.
          */
-        vga_puts("[4/6] Initializing physical memory manager...\n");
+        vga_puts("[8/9] Initializing physical memory manager...\n");
         pmm_init();
         serial_printf("[PMM] Free frames: %u (%.1f MB available)\n",
                       pmm_get_free_frames(), 
@@ -99,10 +109,10 @@ void kernel_main(void) {
          * After init, paging structures are ready but not yet enabled.
          * Pages are allocated from PMM for page tables.
          */
-        vga_puts("[5/6] Initializing paging infrastructure...\n");
+        vga_puts("[9/9] Initializing paging infrastructure...\n");
         paging_init();
         vga_puts("        [OK] Paging structures ready\n");
-        vga_puts("[6/6] Enabling paging...\n");
+        vga_puts("[9.5/9] Enabling paging...\n");
         paging_enable();
         vga_puts("        [OK] Virtual memory active\n\n");
     
@@ -111,11 +121,10 @@ void kernel_main(void) {
          * After paging is enabled, we can allocate dynamic memory.
          * Heap allocator uses PMM to get frames for heap expansion.
          */
-        vga_puts("[7/7] Initializing kernel heap...\n");
         heap_init();
         vga_puts("        [OK] Heap ready\n\n");
         
-        /* Stage 8: Initialize Task State Segment (TSS)
+        /* Stage 9: Initialize Task State Segment (TSS)
          *
          * TSS is used for privilege transitions between ring 0 (kernel)
          * and ring 3 (user mode). When user code triggers an interrupt,
@@ -123,7 +132,7 @@ void kernel_main(void) {
          *
          * Must be initialized after heap (uses kmalloc for TSS structure).
          */
-        vga_puts("[8/8] Initializing TSS for privilege transitions...\n");
+        vga_puts("[TSS] Initializing TSS for privilege transitions...\n");
         tss_init();
         vga_puts("        [OK] TSS ready for user mode transitions\n\n");
     
