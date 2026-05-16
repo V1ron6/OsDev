@@ -36,7 +36,8 @@ OS_IMAGE = $(BUILD)/bytebandit.iso
 KERNEL_ASM_SOURCES = \
     $(KERNEL)/entry.asm \
     $(ARCH)/exceptions.asm \
-    $(ARCH)/irq.asm
+    $(ARCH)/irq.asm \
+    $(ARCH)/usermode.asm
 
 KERNEL_C_SOURCES = \
     $(KERNEL)/main.c \
@@ -50,6 +51,7 @@ KERNEL_C_SOURCES = \
     $(ARCH)/gdt.c \
     $(ARCH)/tss.c \
     $(ARCH)/context.c \
+    $(ARCH)/usermode.c \
     mm/pmm.c \
     mm/paging.c \
     mm/vmm.c \
@@ -96,6 +98,12 @@ $(BUILD)/$(ARCH)/exceptions.o: $(ARCH)/exceptions.asm
 
 # Assemble hardware IRQs
 $(BUILD)/$(ARCH)/irq.o: $(ARCH)/irq.asm
+	@mkdir -p $(dir $@)
+	@echo "[ASM] $<"
+	$(AS) $(ASFLAGS) -o $@ $<
+
+# Assemble user mode transition
+$(BUILD)/$(ARCH)/usermode.o: $(ARCH)/usermode.asm
 	@mkdir -p $(dir $@)
 	@echo "[ASM] $<"
 	$(AS) $(ASFLAGS) -o $@ $<
