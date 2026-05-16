@@ -23,7 +23,9 @@
 #include "mm/heap.h"
 #include "arch/x86/gdt.h"
 #include "arch/x86/tss.h"
+#include "arch/x86/pit.h"
 #include "kernel/syscall.h"
+#include "kernel/scheduler.h"
 
 void kernel_main(void) {
     /* Stage 1: Initialize VGA for visual feedback */
@@ -124,7 +126,7 @@ void kernel_main(void) {
         heap_init();
         vga_puts("        [OK] Heap ready\n\n");
         
-        /* Stage 9: Initialize Task State Segment (TSS)
+        /* Stage 10: Initialize Task State Segment (TSS)
          *
          * TSS is used for privilege transitions between ring 0 (kernel)
          * and ring 3 (user mode). When user code triggers an interrupt,
@@ -132,9 +134,33 @@ void kernel_main(void) {
          *
          * Must be initialized after heap (uses kmalloc for TSS structure).
          */
-        vga_puts("[TSS] Initializing TSS for privilege transitions...\n");
+        vga_puts("[10/12] Initializing TSS for privilege transitions...\n");
         tss_init();
         vga_puts("        [OK] TSS ready for user mode transitions\n\n");
+        
+        /* Stage 11: Initialize process scheduler
+         *
+         * The scheduler manages the ready queue of tasks and decides
+         * which task gets the CPU on each timer interrupt.
+         * Creates the idle task which runs when no other work is available.
+         *
+         * Must be initialized after heap (creates idle task).
+         */
+        vga_puts("[11/12] Initializing process scheduler...\n");
+        scheduler_init();
+        vga_puts("        [OK] Scheduler ready (ready queue initialized)\n\n");
+        
+        /* Stage 12: Initialize PIT timer for preemptive scheduling
+         *
+         * The PIT generates periodic interrupts (IRQ0) which drive
+         * task preemption and scheduling. Set for 100 Hz (10ms ticks).
+         * Task switching happens on each timer interrupt.
+         *
+         * Must be initialized after scheduler (needs scheduler for IRQ0 handler).
+         */
+        vga_puts("[12/12] Initializing PIT timer for preemptive multitasking...\n");
+        pit_init();
+        vga_puts("        [OK] PIT enabled (100 Hz, task switching active)\n\n");
     
     /* Bootstrap complete - display status */
     vga_puts("Bootstrap complete\n\n");
@@ -163,25 +189,29 @@ void kernel_main(void) {
     vga_puts(">>> System initialization test:\n");
     serial_puts("[KERNEL] Bootstrap sequence complete\n");
     serial_puts("[KERNEL] System is ready for hardware interrupts\n");
-    serial_puts("[KERNEL] All IRQs currently masked (disabled by PIC)\n");
     serial_puts("[KERNEL] Virtual memory is active\n");
-        serial_puts("[KERNEL] Kernel heap allocator initialized\n");
+    serial_puts("[KERNEL] Kernel heap allocator initialized\n");
+    serial_puts("[KERNEL] Process scheduler initialized\n");
+    serial_puts("[KERNEL] PIT timer configured (100 Hz)\n");
     vga_puts("    Messages sent to serial port\n\n");
     
-    vga_puts("Ready for driver initialization and interrupt handling.\n");
-    vga_puts("(Waiting indefinitely - CPU halted with interrupts disabled)\n\n");
+    vga_puts("Enabling interrupts for preemptive multitasking...\n");
+    enable_interrupts();
+    vga_puts("    [OK] Interrupts enabled\n\n");
     
-    /* Hang indefinitely with interrupts disabled (for now)
+    vga_puts("System running. Waiting for input or activity.\n");
+    vga_puts("(Processor halting until next interrupt)\n\n");
+    
+    /* Halt and wait for interrupts
      *
-     * Once drivers are ready, they will:
-     * 1. Call irq_install_handler() to register their handler
-     * 2. Call irq_enable() to unmask their IRQ at PIC
-     * 3. Call enable_interrupts() to allow CPU to receive them
+     * The system is now ready for preemptive multitasking:
+     * 1. PIT timer generates 100 Hz interrupts (10ms each)
+     * 2. Each timer interrupt (IRQ0) triggers task scheduling
+     * 3. idle_task runs when no other tasks are ready
+     * 4. When tasks are created, they will be scheduled by the PIT
      *
-     * Without this, the system would be frozen since no device drivers
-     * are running to provide input or generate events.
+     * Processor will wake on each interrupt and execute the IRQ handler.
      */
-    disable_interrupts();
     while (1) {
         halt();
     }
