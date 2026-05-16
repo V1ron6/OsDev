@@ -46,6 +46,7 @@ KERNEL_C_SOURCES = \
     $(ARCH)/idt.c \
     $(ARCH)/isr.c \
     $(ARCH)/pic.c \
+	$(ARCH)/hwirq.c \
     $(ARCH)/context.c \
     mm/pmm.c \
     mm/paging.c \
