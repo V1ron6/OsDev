@@ -20,7 +20,7 @@
  */
 
 #include "arch/x86/pit.h"
-#include "arch/x86/irq.h"
+#include "irq.h"
 #include "kernel/scheduler.h"
 #include "kernel/task.h"
 #include "kernel/context.h"

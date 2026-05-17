@@ -38,25 +38,25 @@ KERNEL_ASM_SOURCES = \
     $(KERNEL)/syscall_entry.asm \
     $(ARCH)/exceptions.asm \
     $(ARCH)/irq.asm \
-    $(ARCH)/usermode.asm
-	$(ARCH)/context.asm
+    $(ARCH)/usermode.asm \
+    $(ARCH)/context.asm
 
 KERNEL_C_SOURCES = \
     $(KERNEL)/main.c \
     $(KERNEL)/panic.c \
     $(KERNEL)/syscall.c \
-	$(KERNEL)/scheduler.c \
+    $(KERNEL)/scheduler.c \
     $(DRIVERS)/vga.c \
     $(DRIVERS)/serial.c \
     $(ARCH)/idt.c \
     $(ARCH)/isr.c \
     $(ARCH)/pic.c \
-	$(ARCH)/hwirq.c \
+    $(ARCH)/hwirq.c \
     $(ARCH)/gdt.c \
     $(ARCH)/tss.c \
     $(ARCH)/context.c \
     $(ARCH)/usermode.c \
-	$(ARCH)/pit.c \
+    $(ARCH)/pit.c \
     mm/pmm.c \
     mm/paging.c \
     mm/vmm.c \
