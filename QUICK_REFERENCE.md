@@ -4,7 +4,7 @@
 
 ### Build
 ```bash
-make all              # Build everything (clean + bootloader + kernel)
+./builder.sh          # Build a new versioned VirtualBox/QEMU ISO
 make clean            # Remove build artifacts
 make info             # Show build configuration
 make disasm           # Generate kernel disassembly (build/kernel.asm)
@@ -16,8 +16,8 @@ make run              # Build and boot in QEMU (serial to stdio)
 make debug            # Boot in QEMU with GDB server (-s -S)
 
 # Custom QEMU
-qemu-system-i386 -hda build/bytebandit.img -serial stdio
-qemu-system-i386 -hda build/bytebandit.img -serial file:/tmp/serial.log
+qemu-system-i386 -cdrom output/bytebandit-vNNN.iso -serial stdio
+qemu-system-i386 -cdrom output/bytebandit-vNNN.iso -serial file:/tmp/serial.log
 
 # GDB debugging
 gdb build/kernel.elf
@@ -118,7 +118,7 @@ wc -c build/bootloader.bin
 i686-elf-objdump -h build/kernel.elf
 
 # Total image size
-wc -c build/bytebandit.iso
+wc -c output/bytebandit-vNNN.iso
 
 # Disassembly by section
 make disasm && grep "Disassembly\|^0001" build/kernel.asm | head -30
@@ -128,7 +128,7 @@ make disasm && grep "Disassembly\|^0001" build/kernel.asm | head -30
 
 ```bash
 # Boot and capture serial log
-timeout 3 qemu-system-i386 -hda build/bytebandit.img -serial file:/tmp/boot.log || true
+timeout 3 qemu-system-i386 -cdrom output/bytebandit-vNNN.iso -serial file:/tmp/boot.log || true
 # Examine log
 hexdump -C /tmp/boot.log | head -40
 # (Look for SeaBIOS messages and execution path)
@@ -212,7 +212,7 @@ Before committing changes:
 **QEMU hangs at boot**
 - Check serial log: `qemu-system-i386 ... -serial file:/tmp/log.txt`
 - Enable GDB: `make debug` and step through bootloader
-- Verify binary layout: `hexdump -C build/bytebandit.iso | head -30`
+- Verify binary layout: `hexdump -C output/bytebandit-vNNN.iso | head -30`
 
 **GDB "target remote" fails**
 - Ensure QEMU started with `-s -S` flags

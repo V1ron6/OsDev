@@ -16,6 +16,7 @@
 #define _BYTEBANDIT_SYSCALL_H
 
 #include "types.h"
+#include "bb_syscall.h"
 
 /* Syscall numbers (matching Linux i386 ABI for reference) */
 #define SYS_EXIT        1   /* Terminate process */
@@ -64,7 +65,7 @@
 #define SYS_SETREGID    71  /* Set real and effective group IDs */
 
 /* Initial syscalls we implement */
-#define SYSCALL_MAX 100
+#define SYSCALL_MAX 128
 
 /**
  * Initialize syscall system.
@@ -148,5 +149,15 @@ uint32_t syscall_getuid(void);
  * @return 0 on success, -1 on error
  */
 int32_t syscall_kill(uint32_t pid, uint32_t sig);
+
+uint32_t syscall_uptime(void);
+int32_t syscall_sleep(uint32_t milliseconds);
+int32_t syscall_get_system_info(bb_system_info_t *info);
+int32_t syscall_open(const char *path, uint32_t flags);
+int32_t syscall_close(int32_t fd);
+int32_t syscall_mkdir(const char *path);
+int32_t syscall_unlink(const char *path);
+int32_t syscall_registry_query(const char *path, char *buffer, uint32_t length);
+int32_t syscall_registry_set(const char *path, const char *value);
 
 #endif /* _BYTEBANDIT_SYSCALL_H */

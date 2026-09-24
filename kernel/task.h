@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "mm/paging.h"
 
 /* =========================================================================
  * TASK STATE ENUMERATION
@@ -48,7 +49,7 @@ typedef enum {
  *   Flags (EFLAGS) - Interrupt enable, etc.
  *   EIP - Instruction pointer (next instruction)
  */
-typedef struct {
+typedef struct task {
     uint32_t eax;      /* General purpose */
     uint32_t ebx;      /* Preserved */
     uint32_t ecx;      /* General purpose */
@@ -92,17 +93,20 @@ typedef struct {
     uint32_t priority;         /* Scheduling priority */
     cpu_context_t context;     /* Saved CPU registers */
     uint32_t page_dir;         /* CR3 value (page directory address) */
+    page_directory_t *page_dir_virtual; /* Kernel mapping of page directory */
     uint32_t kernel_stack;     /* Kernel stack pointer */
     uint32_t entry_point;      /* Entry point address */
     uint32_t flags;            /* Task flags */
     uint32_t cpu_time;         /* Total CPU time (ticks) */
     uint32_t created_time;     /* Creation time (ticks) */
     char name[32];             /* Task name for debugging */
+    struct task *next;         /* Next task in the registry */
 } task_t;
 
 /* Task flags */
 #define TASK_FLAG_USER_MODE    0x0001  /* User mode (else kernel) */
 #define TASK_FLAG_PRIVILEGED   0x0002  /* Has elevated privileges */
+#define TASK_MAX_COUNT         256
 
 /* =========================================================================
  * TASK LIFECYCLE
@@ -121,6 +125,13 @@ typedef struct {
  * Note: Task is created but not scheduled yet. Call task_spawn() to start.
  */
 task_t *task_create(const char *name, uint32_t entry_point, uint32_t flags);
+
+/** Create a user task by loading an ELF32 executable image. */
+task_t *task_create_from_elf(const char *name, void *image,
+                             uint32_t image_size);
+
+/** Find a task by process ID. */
+task_t *task_find(uint32_t pid);
 
 /**
  * task_destroy() - Destroy and free a task

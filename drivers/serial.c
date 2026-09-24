@@ -48,6 +48,7 @@
 
 /* Line status register bits */
 #define SERIAL_LSTAT_TRDY 0x20  /* Transmit holding register empty */
+#define SERIAL_LSTAT_DATA 0x01  /* Receiver data ready */
 
 /* Initialize COM1 serial port
  *
@@ -120,6 +121,14 @@ void serial_putc(char c) {
     outb(SERIAL_COM1_BASE + SERIAL_DATA, (uint8_t)c);
 }
 
+int serial_received(void) {
+    return (inb(SERIAL_COM1_BASE + SERIAL_LSTAT) & SERIAL_LSTAT_DATA) != 0;
+}
+
+char serial_getc(void) {
+    return (char)inb(SERIAL_COM1_BASE + SERIAL_DATA);
+}
+
 /* Transmit null-terminated string
  *
  * @param str: pointer to null-terminated string
@@ -165,6 +174,11 @@ void serial_printf(const char *fmt, ...) {
     while (*fmt) {
         if (*fmt == '%') {
             fmt++;
+            int width = 0;
+            while (*fmt >= '0' && *fmt <= '9') {
+                width = width * 10 + (*fmt - '0');
+                fmt++;
+            }
             if (*fmt == 's') {
                 /* String argument */
                 const char *str = va_arg(args, const char *);
@@ -193,13 +207,32 @@ void serial_printf(const char *fmt, ...) {
                 while (idx > 0) {
                     serial_putc(buffer[--idx]);
                 }
-            } else if (*fmt == 'x') {
+            } else if (*fmt == 'u') {
+                unsigned int num = va_arg(args, unsigned int);
+                char buffer[16];
+                int idx = 0;
+                if (num == 0) {
+                    buffer[idx++] = '0';
+                } else {
+                    while (num > 0) {
+                        buffer[idx++] = '0' + (num % 10);
+                        num /= 10;
+                    }
+                }
+                while (idx > 0) {
+                    serial_putc(buffer[--idx]);
+                }
+            } else if (*fmt == 'x' || *fmt == 'p') {
                 /* Hexadecimal integer */
                 unsigned int num = va_arg(args, unsigned int);
                 const char *hex = "0123456789ABCDEF";
-                
-                /* Handle 32-bit number */
-                for (int i = 28; i >= 0; i -= 4) {
+                if (*fmt == 'p') {
+                    serial_puts("0x");
+                }
+                if (width == 0) {
+                    width = 8;
+                }
+                for (int i = (width - 1) * 4; i >= 0; i -= 4) {
                     serial_putc(hex[(num >> i) & 0xF]);
                 }
             } else if (*fmt == '%') {

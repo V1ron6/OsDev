@@ -48,7 +48,7 @@
 #define PIT_CTRL_OP_MODE_RATE       (2 << 1)  /* Mode 2: rate generator (periodic) */
 #define PIT_CTRL_OP_MODE_SQ_WAVE    (3 << 1)  /* Mode 3: square wave generator */
 
-#define PIT_CTRL_BCD                1         /* Mode: 0=binary, 1=BCD */
+#define PIT_CTRL_BCD                0         /* Binary counter mode */
 
 /* PIT frequency settings */
 #define PIT_BASE_FREQUENCY  1193182    /* Hz - base clock frequency */
@@ -152,6 +152,10 @@ uint32_t pit_ticks_to_ms(uint32_t ticks) {
 }
 
 void pit_sleep_ms(uint32_t ms) {
-    (void)ms;
-    /* TODO: Block current task, wake up after specified time */
+    uint32_t wait_ticks = (ms + 9) / 10;
+    uint32_t deadline = pit_ticks + wait_ticks;
+
+    while ((int32_t)(pit_ticks - deadline) < 0) {
+        halt();
+    }
 }

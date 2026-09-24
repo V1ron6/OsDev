@@ -64,8 +64,8 @@ _irq_common:
     push fs
     push gs
     
-    ; Get IRQ number from stack (above our pushes)
-    mov eax, [esp + 36]
+    ; Get IRQ number from stack (above eleven saved registers).
+    mov eax, [esp + 44]
     
     ; Call C handler(irq_number)
     push eax

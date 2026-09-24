@@ -10,10 +10,31 @@
 #include "mm/paging.h"
 #include "mm/constants.h"
 #include "serial.h"
+#include "fs/elf.h"
 #include <string.h>
 
 /* Global task counter for PID assignment */
 static uint32_t next_pid = 1;
+static task_t *task_registry[TASK_MAX_COUNT];
+
+static bool task_registry_add(task_t *task) {
+    for (uint32_t i = 0; i < TASK_MAX_COUNT; i++) {
+        if (task_registry[i] == NULL) {
+            task_registry[i] = task;
+            return true;
+        }
+    }
+    return false;
+}
+
+static void task_registry_remove(task_t *task) {
+    for (uint32_t i = 0; i < TASK_MAX_COUNT; i++) {
+        if (task_registry[i] == task) {
+            task_registry[i] = NULL;
+            return;
+        }
+    }
+}
 
 /* =========================================================================
  * TASK LIFECYCLE
@@ -36,6 +57,13 @@ task_t *task_create(const char *name, uint32_t entry_point, uint32_t flags) {
     task->entry_point = entry_point;
     task->cpu_time = 0;
     task->created_time = 0;  /* TODO: get current tick */
+    task->next = NULL;
+
+    if (!task_registry_add(task)) {
+        serial_puts("[ERROR] task_create: task table is full\n");
+        kfree(task);
+        return NULL;
+    }
     
     /* Copy task name */
     strncpy(task->name, name ? name : "unnamed", sizeof(task->name) - 1);
@@ -54,6 +82,7 @@ task_t *task_create(const char *name, uint32_t entry_point, uint32_t flags) {
     
     if (stack_frame1 == 0 || stack_frame2 == 0) {
         serial_puts("[ERROR] task_create: Out of memory for stack\n");
+        task_registry_remove(task);
         kfree(task);
         return NULL;
     }
@@ -73,11 +102,26 @@ task_t *task_create(const char *name, uint32_t entry_point, uint32_t flags) {
      * For user tasks, create separate page directory (not yet implemented)
      */
     if (flags & TASK_FLAG_USER_MODE) {
-        /* TODO: Create user-mode page directory */
-        task->page_dir = paging_get_page_dir();  /* Fallback to kernel */
+        task->page_dir = paging_create_user_directory(&task->page_dir_virtual);
+        if (task->page_dir == 0 ||
+            !paging_map_page_in_directory(task->page_dir_virtual,
+                                           0xBFFFE000, stack_frame1,
+                                           PAGE_USER_RW) ||
+            !paging_map_page_in_directory(task->page_dir_virtual,
+                                           0xBFFFF000, stack_frame2,
+                                           PAGE_USER_RW)) {
+            serial_puts("[ERROR] task_create: user address space failed\n");
+            task_registry_remove(task);
+            kfree(task);
+            return NULL;
+        }
+        task->kernel_stack = stack_virt + (2 * PAGE_SIZE);
     } else {
         task->page_dir = paging_get_page_dir();
+        task->page_dir_virtual = (page_directory_t *)task->page_dir;
     }
+
+    task->context.cr3 = task->page_dir;
     
     serial_printf("[TASK] Created task %u: '%s' at 0x%x\n", 
                   task->pid, task->name, entry_point);
@@ -85,15 +129,63 @@ task_t *task_create(const char *name, uint32_t entry_point, uint32_t flags) {
     return task;
 }
 
+task_t *task_find(uint32_t pid) {
+    for (uint32_t i = 0; i < TASK_MAX_COUNT; i++) {
+        if (task_registry[i] != NULL && task_registry[i]->pid == pid) {
+            return task_registry[i];
+        }
+    }
+    return NULL;
+}
+
+task_t *task_create_from_elf(const char *name, void *image,
+                             uint32_t image_size) {
+    elf_header_t *header = (elf_header_t *)image;
+    task_t *task;
+
+    if (image == NULL || image_size < sizeof(elf_header_t) ||
+        !elf_validate_header(header)) {
+        return NULL;
+    }
+
+    task = task_create(name, header->e_entry, TASK_FLAG_USER_MODE);
+    if (task == NULL || !elf_load_segments(image, image_size,
+                                            task->page_dir_virtual,
+                                            &task->entry_point)) {
+        if (task != NULL) {
+            task_destroy(task);
+        }
+        return NULL;
+    }
+
+    task->context.eip = task->entry_point;
+    task->context.cr3 = task->page_dir;
+    return task;
+}
+
 void task_destroy(task_t *task) {
+    uint32_t stack_base;
+    uint32_t frame1;
+    uint32_t frame2;
+
     if (task == NULL) {
         return;
     }
     
     serial_printf("[TASK] Destroying task %u: '%s'\n", task->pid, task->name);
-    
-    /* TODO: Free page directory */
-    /* TODO: Free kernel stack */
+    task_registry_remove(task);
+
+    stack_base = task->kernel_stack - (2 * PAGE_SIZE);
+    frame1 = paging_get_mapping(stack_base);
+    frame2 = paging_get_mapping(stack_base + PAGE_SIZE);
+    paging_unmap_page(stack_base);
+    paging_unmap_page(stack_base + PAGE_SIZE);
+    if (frame1 != 0) {
+        pmm_free_frame(frame1);
+    }
+    if (frame2 != 0) {
+        pmm_free_frame(frame2);
+    }
     
     kfree(task);
 }
@@ -147,5 +239,12 @@ void task_dump(task_t *task) {
 }
 
 void task_list_dump(void) {
-    serial_puts("[TODO] task_list_dump() - task list not yet implemented\n");
+    serial_puts("\n=== Task List ===\n");
+    for (uint32_t i = 0; i < TASK_MAX_COUNT; i++) {
+        task_t *task = task_registry[i];
+        if (task != NULL) {
+            serial_printf("PID %u: %s (state %u)\n",
+                          task->pid, task->name, task->state);
+        }
+    }
 }

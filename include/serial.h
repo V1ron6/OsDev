@@ -14,6 +14,12 @@ void serial_init(void);
 /* Send single character */
 void serial_putc(char c);
 
+/* Return non-zero when a character is waiting in the receive buffer. */
+int serial_received(void);
+
+/* Read one received character. Call only after serial_received(). */
+char serial_getc(void);
+
 /* Send null-terminated string */
 void serial_puts(const char *str);
 

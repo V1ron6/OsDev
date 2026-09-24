@@ -59,7 +59,6 @@ void gdt_init(void) {
                    0x00 |                       /* DPL: Ring 0 */
                    GDT_ACCESS_CODE_DATA |       /* S: Code/data */
                    GDT_ACCESS_EXECUTE |         /* E: Executable */
-                   GDT_ACCESS_DIRECTION |       /* C: Conforming */
                    GDT_ACCESS_RW,               /* R: Readable */
                    GDT_GRANULARITY_PAGE |       /* G: 4KB granule */
                    GDT_GRANULARITY_SIZE);       /* D: 32-bit */
@@ -93,7 +92,6 @@ void gdt_init(void) {
                    0x60 |                       /* DPL: Ring 3 */
                    GDT_ACCESS_CODE_DATA |       /* S: Code/data */
                    GDT_ACCESS_EXECUTE |         /* E: Executable */
-                   GDT_ACCESS_DIRECTION |       /* C: Conforming */
                    GDT_ACCESS_RW,               /* R: Readable */
                    GDT_GRANULARITY_PAGE |       /* G: 4KB granule */
                    GDT_GRANULARITY_SIZE);       /* D: 32-bit */

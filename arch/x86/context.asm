@@ -1,116 +1,84 @@
-/*
- * arch/x86/context.asm - Context Switching Assembly
- *
- * Low-level CPU context save/restore for task switching.
- *
- * Context is saved to/restored from cpu_context_t structure:
- *   Offset  0-3:  EAX
- *   Offset  4-7:  EBX
- *   Offset  8-11: ECX
- *   Offset 12-15: EDX
- *   Offset 16-19: ESI
- *   Offset 20-23: EDI
- *   Offset 24-27: ESP
- *   Offset 28-31: EBP
- *   Offset 32-35: EIP
- *   Offset 36-39: EFLAGS
- *   Offset 40-43: CR3
- */
+; arch/x86/context.asm - Context Switching Assembly
+;
+; Low-level CPU context save/restore for task switching.
+;
+; Context offsets:
+;   0: EAX, 4: EBX, 8: ECX, 12: EDX
+;   16: ESI, 20: EDI, 24: ESP, 28: EBP
+;   32: EIP, 36: EFLAGS, 40: CR3
 
-.section .text
+bits 32
+section .text
 
-.global context_switch_asm
-.global context_save_asm
-.global context_restore_asm
-.global _context_switch_asm
-.global _context_save_asm
-.global _context_restore_asm
+global context_switch_asm
+global context_save_asm
+global context_restore_asm
+global _context_switch_asm
+global _context_save_asm
+global _context_restore_asm
 
-/*
- * void context_switch_asm(cpu_context_t *from, cpu_context_t *to)
- *
- * Switch context from one task to another.
- * Saves current CPU state to 'from' context, restores 'to' context.
- * Does NOT return - jumps to 'to' task's EIP.
- *
- * WARNING: Interrupts must be disabled. Stack and other state are fragile.
- * Only call from carefully controlled contexts (interrupt handler).
- *
- * Parameters (x86 cdecl):
- *   [esp+4] = from pointer
- *   [esp+8] = to pointer
- */
+; void context_switch_asm(cpu_context_t *from, cpu_context_t *to)
+;
+; The interrupt-frame switch will be added when PIT preemption is wired.
 context_switch_asm:
 _context_switch_asm:
-    /* For now, this is a stub that just returns to caller.
-     * Real implementation would:
-     * 1. Save EBX, ECX, ESI, EDI, EBP, ESP to 'from'
-     * 2. Load those registers from 'to'
-     * 3. Update TSS.esp0 if privilege level changes
-     * 4. Load CR3 from 'to' (page directory switch)
-     * 5. Jump to 'to'->eip (or set up to IRET)
-     *
-     * For Phase 4.4, we'll implement proper context switching.
-     * For now, return 0 so the system doesn't crash.
-     */
+    ; The interrupt-frame switch will be added when PIT preemption is wired.
     ret
 
-/*
- * void context_save_asm(cpu_context_t *ctx)
- *
- * Save current CPU registers to context structure.
- *
- * Parameter:
- *   [esp+4] = pointer to cpu_context_t
- */
+; void context_save_asm(cpu_context_t *ctx)
 context_save_asm:
 _context_save_asm:
-    mov 4(%esp), %eax       /* eax = ctx pointer */
+    push edx
+    mov edx, [esp + 8]      ; edx = ctx pointer
     
-    /* Save general purpose registers */
-    mov %ebx, 4(%eax)       /* EBX */
-    mov %ecx, 8(%eax)       /* ECX */
-    mov %edx, 12(%eax)      /* EDX */
-    mov %esi, 16(%eax)      /* ESI */
-    mov %edi, 20(%eax)      /* EDI */
+    ; Save general purpose registers.
+    mov [edx + 0], eax
+    mov [edx + 4], ebx
+    mov [edx + 8], ecx
+    mov ecx, [esp]
+    mov [edx + 12], ecx
+    mov [edx + 16], esi
+    mov [edx + 20], edi
     
-    /* Save frame and stack pointers */
-    mov %ebp, 28(%eax)      /* EBP */
-    mov %esp, 24(%eax)      /* ESP */
+    ; Save frame and stack pointers.
+    mov [edx + 28], ebp
+    mov [edx + 24], esp
     
-    /* Save EFLAGS */
-    pushf
-    pop %ecx
-    mov %ecx, 36(%eax)      /* EFLAGS */
+    ; Save EFLAGS and CR3.
+    pushfd
+    pop ecx
+    mov [edx + 36], ecx
+    mov eax, cr3
+    mov [edx + 40], eax
     
+    pop edx
     ret
 
-/*
- * void context_restore_asm(cpu_context_t *ctx)
- *
- * Restore CPU registers from context structure.
- * Does NOT restore EIP, ESP, or EFLAGS (caller must handle with IRET).
- *
- * Parameter:
- *   [esp+4] = pointer to cpu_context_t
- */
+; void context_restore_asm(cpu_context_t *ctx)
+;
+; EIP, ESP, and EFLAGS are restored by the interrupt return path.
 context_restore_asm:
 _context_restore_asm:
-    mov 4(%esp), %eax       /* eax = ctx pointer */
+    mov edx, [esp + 4]      ; edx = ctx pointer
     
-    /* Restore general purpose registers */
-    mov 4(%eax), %ebx       /* EBX */
-    mov 8(%eax), %ecx       /* ECX */
-    mov 12(%eax), %edx      /* EDX */
-    mov 16(%eax), %esi      /* ESI */
-    mov 20(%eax), %edi      /* EDI */
+    ; Restore general purpose registers.
+    mov ebx, [edx + 4]
+    mov ecx, [edx + 8]
+    mov eax, [edx + 0]
+    mov esi, [edx + 16]
+    mov edi, [edx + 20]
     
-    /* Restore frame pointer */
-    mov 28(%eax), %ebp      /* EBP */
+    ; Restore frame pointer and page directory.
+    mov ebp, [edx + 28]
+    mov ecx, [edx + 40]
+    mov cr3, ecx
     
-    /* Don't restore ESP (caller uses this for return) */
-    /* Don't restore EIP (caller uses this for return address) */
-    /* Don't restore EFLAGS (interrupts managed elsewhere) */
+    ; Restore EDX last because it holds the context pointer.
+    mov ecx, [edx + 12]
+    mov eax, [edx + 0]
+    mov edx, ecx
+
+    ; ESP, EIP, and EFLAGS are restored by the interrupt return path.
     
     ret
 

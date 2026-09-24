@@ -24,6 +24,7 @@
 
 #include <stdint.h>
 #include "types.h"
+#include "mm/paging.h"
 
 /* =========================================================================
  * ELF MAGIC AND CONSTANTS
@@ -179,5 +180,10 @@ elf_section_header_t *elf_get_section_header(void *base, uint32_t index);
  * Returns: Pointer to section header, or NULL if not found
  */
 elf_section_header_t *elf_get_section_by_name(void *base, const char *name);
+
+/** Load PT_LOAD segments into a prepared user address space. */
+bool elf_load_segments(void *base, uint32_t image_size,
+                       page_directory_t *directory,
+                       uint32_t *entry_point);
 
 #endif /* FS_ELF_H */

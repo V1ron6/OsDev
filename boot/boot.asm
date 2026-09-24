@@ -21,6 +21,8 @@
 [BITS 16]                               ; Real mode assembly (16-bit)
 [ORG 0x7C00]                            ; Bootloader loaded here by BIOS
 
+%define KERNEL_SECTORS 128              ; Maximum kernel payload: 64 KiB
+
 boot_start:
     ; Disable interrupts immediately - we manage CPU state now
     cli
@@ -46,23 +48,44 @@ boot_start:
     
     ; ===== LOAD KERNEL FROM DISK =====
     ; Kernel image follows bootloader
-    ; Load to 0x1000 (4 KB after bootloader)
-    ; Calculate sectors needed: each sector is 512 bytes
-    ; Kernel is about 3KB, so load 8 sectors to be safe
+    ; Load to 0x1000 (linear address 0x10000).
+    ; Read one sector at a time so the loader works across CHS tracks.
     
     mov ax, 0x1000
     mov es, ax                          ; Segment for disk read
     xor bx, bx                          ; Offset 0x0000
     
+    mov byte [sectors_left], KERNEL_SECTORS
+    mov byte [current_sector], 2        ; Sector 1 is the boot sector
+    mov byte [current_head], 0
+    mov byte [current_cylinder], 0
+
+.load_sector:
     mov ah, 0x02                        ; BIOS disk read function
-    mov al, 8                           ; Read 8 sectors (4 KB)
-    mov ch, 0                           ; Cylinder 0
-    mov cl, 2                           ; Sector 2 (bootloader is sector 0-1)
-    mov dh, 0                           ; Head 0
-    mov dl, byte [boot_drive]           ; Drive number
+    mov al, 1                           ; Read one sector
+    mov ch, byte [current_cylinder]
+    mov cl, byte [current_sector]
+    mov dh, byte [current_head]
+    mov dl, byte [boot_drive]
     int 0x13
-    
-    jc disk_error                       ; Jump if error
+    jc disk_error
+
+    add bx, 512
+    dec byte [sectors_left]
+    jz kernel_loaded
+
+    inc byte [current_sector]
+    cmp byte [current_sector], 19       ; 18 sectors per track
+    jb .load_sector
+    mov byte [current_sector], 1
+    inc byte [current_head]
+    cmp byte [current_head], 2          ; Two heads per cylinder
+    jb .load_sector
+    mov byte [current_head], 0
+    inc byte [current_cylinder]
+    jmp .load_sector
+
+kernel_loaded:
     
     ; ===== INSTALL GDT =====
     ; GDT (Global Descriptor Table) defines memory segments
@@ -177,6 +200,14 @@ pm_entry:
 [BITS 16]
 
 boot_drive:
+    db 0x00
+sectors_left:
+    db 0x00
+current_sector:
+    db 0x00
+current_head:
+    db 0x00
+current_cylinder:
     db 0x00
 
 ; ===== BOOT SIGNATURE =====

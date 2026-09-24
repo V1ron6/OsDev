@@ -4,6 +4,7 @@
 
 # Toolchain configuration
 CC = i686-elf-gcc
+HOSTCC = gcc
 LD = i686-elf-ld
 AS = nasm
 OBJCOPY = i686-elf-objcopy
@@ -30,7 +31,11 @@ ARCH = arch/x86
 BOOTLOADER = $(BUILD)/bootloader.bin
 KERNEL_ELF = $(BUILD)/kernel.elf
 KERNEL_BIN = $(BUILD)/kernel.bin
-OS_IMAGE = $(BUILD)/bytebandit.iso
+BOOT_IMAGE = $(BUILD)/bytebandit-boot.img
+MKISO = $(BUILD)/mkiso
+OUTPUT = output
+ISO_NAME ?= bytebandit.iso
+OS_IMAGE = $(OUTPUT)/$(ISO_NAME)
 
 # Source files
 KERNEL_ASM_SOURCES = \
@@ -38,12 +43,13 @@ KERNEL_ASM_SOURCES = \
     $(KERNEL)/syscall_entry.asm \
     $(ARCH)/exceptions.asm \
     $(ARCH)/irq.asm \
-    $(ARCH)/usermode.asm \
-    $(ARCH)/context.asm
+	$(ARCH)/usermode.asm
 
 KERNEL_C_SOURCES = \
     $(KERNEL)/main.c \
     $(KERNEL)/panic.c \
+	$(KERNEL)/bb_api.c \
+	$(KERNEL)/console.c \
     $(KERNEL)/syscall.c \
     $(KERNEL)/scheduler.c \
     $(DRIVERS)/vga.c \
@@ -63,10 +69,13 @@ KERNEL_C_SOURCES = \
     mm/heap.c \
     $(KERNEL)/task.c \
     fs/elf.c \
+	fs/vfs.c \
+	fs/registry.c \
     libk/string.c
 
 KERNEL_OBJ = $(patsubst %.c,$(BUILD)/%.o,$(KERNEL_C_SOURCES))
 KERNEL_OBJ += $(patsubst %.asm,$(BUILD)/%.o,$(KERNEL_ASM_SOURCES))
+KERNEL_OBJ += $(BUILD)/$(ARCH)/context_asm.o
 
 # Default target
 all: $(OS_IMAGE)
@@ -119,6 +128,12 @@ $(BUILD)/$(ARCH)/usermode.o: $(ARCH)/usermode.asm
 	@echo "[ASM] $<"
 	$(AS) $(ASFLAGS) -o $@ $<
 
+# Assemble context switching helpers separately from context.c.
+$(BUILD)/$(ARCH)/context_asm.o: $(ARCH)/context.asm
+	@mkdir -p $(dir $@)
+	@echo "[ASM] $<"
+	$(AS) $(ASFLAGS) -o $@ $<
+
 # Link kernel ELF
 $(KERNEL_ELF): $(KERNEL_OBJ)
 	@echo "[LD] Linking kernel..."
@@ -129,23 +144,41 @@ $(KERNEL_BIN): $(KERNEL_ELF)
 	@echo "[OBJCOPY] Extracting kernel binary..."
 	$(OBJCOPY) -O binary -j .text -j .rodata -j .data -j .bss $< $@
 
-# Create bootable ISO (for now, just concatenate bootloader + kernel)
-$(OS_IMAGE): $(BOOTLOADER) $(KERNEL_BIN)
+# Create a padded 1.44 MB El Torito boot image.
+$(BOOT_IMAGE): $(BOOTLOADER) $(KERNEL_BIN)
+	@KERNEL_SIZE=$$(stat -c%s $(KERNEL_BIN)); \
+	KERNEL_SECTORS=$$((($$KERNEL_SIZE + 511) / 512)); \
+	if [ $$KERNEL_SECTORS -gt 128 ]; then \
+		echo "ERROR: Kernel needs $$KERNEL_SECTORS sectors, bootloader supports 128"; exit 1; \
+	fi
+	@mkdir -p $(dir $@)
+	truncate -s 1474560 $@
+	dd if=$(BOOTLOADER) of=$@ bs=512 count=1 conv=notrunc status=none
+	dd if=$(KERNEL_BIN) of=$@ bs=512 seek=1 conv=notrunc status=none
+
+# Build the host-side El Torito ISO writer.
+$(MKISO): tools/mkiso.c
+	@mkdir -p $(dir $@)
+	@echo "[HOSTCC] $<"
+	$(HOSTCC) -std=c99 -Wall -Wextra -pedantic -O2 -o $@ $<
+
+# Create a VirtualBox-compatible ISO with a floppy-emulation boot catalog.
+$(OS_IMAGE): $(BOOT_IMAGE) $(MKISO)
 	@echo "[BUILD] Creating OS image..."
-	@mkdir -p $(BUILD)
-	cat $(BOOTLOADER) $(KERNEL_BIN) > $@
+	@mkdir -p $(OUTPUT)
+	$(MKISO) $(BOOT_IMAGE) $@
 	@SIZE=$$(stat -c%s $@ 2>/dev/null || stat -f%z $@ 2>/dev/null); \
 	echo "  Image size: $$SIZE bytes"
 
 # Run in QEMU
 run: $(OS_IMAGE)
 	@echo "[QEMU] Starting emulator..."
-	qemu-system-i386 -drive file=$(OS_IMAGE),format=raw,if=floppy -serial stdio
+	qemu-system-i386 -cdrom $(OS_IMAGE) -serial stdio
 
 # Run with GDB debugging
 debug: $(OS_IMAGE)
 	@echo "[QEMU] Starting with GDB debugging..."
-	qemu-system-i386 -drive file=$(OS_IMAGE),format=raw,if=floppy -serial stdio -s -S
+	qemu-system-i386 -cdrom $(OS_IMAGE) -serial stdio -s -S
 
 # Generate disassembly
 disasm: $(KERNEL_ELF)
@@ -164,6 +197,7 @@ info:
 	@echo "  Bootloader: $(BOOTLOADER)"
 	@echo "  Kernel ELF: $(KERNEL_ELF)"
 	@echo "  Kernel BIN: $(KERNEL_BIN)"
+	@echo "  Boot Image: $(BOOT_IMAGE)"
 	@echo "  OS Image: $(OS_IMAGE)"
 	@echo ""
 	@echo "Targets:"

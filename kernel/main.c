@@ -26,6 +26,9 @@
 #include "arch/x86/pit.h"
 #include "kernel/syscall.h"
 #include "kernel/scheduler.h"
+#include "kernel/console.h"
+#include "fs/vfs.h"
+#include "fs/registry.h"
 
 void kernel_main(void) {
     /* Stage 1: Initialize VGA for visual feedback */
@@ -125,6 +128,9 @@ void kernel_main(void) {
          */
         heap_init();
         vga_puts("        [OK] Heap ready\n\n");
+
+        vfs_init();
+        registry_init();
         
         /* Stage 10: Initialize Task State Segment (TSS)
          *
@@ -198,6 +204,8 @@ void kernel_main(void) {
     vga_puts("Enabling interrupts for preemptive multitasking...\n");
     enable_interrupts();
     vga_puts("    [OK] Interrupts enabled\n\n");
+
+    console_init();
     
     vga_puts("System running. Waiting for input or activity.\n");
     vga_puts("(Processor halting until next interrupt)\n\n");
@@ -213,6 +221,7 @@ void kernel_main(void) {
      * Processor will wake on each interrupt and execute the IRQ handler.
      */
     while (1) {
+        console_poll();
         halt();
     }
 }

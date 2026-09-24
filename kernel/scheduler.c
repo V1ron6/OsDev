@@ -106,12 +106,18 @@ void scheduler_set_current(task_t *task) {
 }
 
 task_t *scheduler_select_next(void) {
-    /* Try to get next task from ready queue */
+    task_t *current = current_task;
     task_t *next = scheduler_dequeue();
     
-    /* If no ready tasks, use idle task */
+    /* Keep a runnable task in rotation after its time slice. */
+    if (current && current != idle_task &&
+        current->state == TASK_STATE_RUNNING && next) {
+        scheduler_enqueue(current);
+    }
+
+    /* If no ready tasks, continue the current task or use idle. */
     if (!next) {
-        next = idle_task;
+        next = current ? current : idle_task;
     }
     
     return next;

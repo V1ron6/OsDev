@@ -103,7 +103,7 @@ typedef struct {
  * Each PDE points to a page table.
  * Allocated at 4KB boundary.
  */
-typedef struct {
+typedef struct page_directory {
     page_dir_entry_t entries[1024];
 } page_directory_t;
 
@@ -247,6 +247,12 @@ void paging_unmap_page(uint32_t vaddr);
  */
 uint32_t paging_get_mapping(uint32_t vaddr);
 
+/**
+ * Return the flags for the page containing a virtual address.
+ * Returns zero when the page is not present.
+ */
+uint32_t paging_get_mapping_flags(uint32_t vaddr);
+
 /* =========================================================================
  * PAGE FAULT HANDLING
  * ========================================================================= */
@@ -293,6 +299,14 @@ void paging_handle_page_fault(uint32_t error_code);
  * - Process creation (copy page directory)
  */
 uint32_t paging_get_page_dir(void);
+
+/** Create a user address space sharing only supervisor kernel mappings. */
+uint32_t paging_create_user_directory(page_directory_t **directory);
+
+/** Map a page in a specific address space. */
+bool paging_map_page_in_directory(page_directory_t *directory,
+                                   uint32_t vaddr, uint32_t paddr,
+                                   uint32_t flags);
 
 /**
  * paging_load_page_dir() - Load a page directory into CR3

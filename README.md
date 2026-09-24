@@ -4,7 +4,7 @@
 
 ByteBandit OS is a modular, educational x86 operating system kernel built from scratch. It focuses on correctness, maintainability, and clear architecture over feature completeness.
 
-**Current Phase**: Bootstrap infrastructure complete. Kernel execution in QEMU being debugged.
+**Current Phase**: Phase 4 user mode, process, and executable-loading work is in progress.
 
 ## Quick Start
 
@@ -21,7 +21,9 @@ The project provides cross-compiler wrappers for i686-elf toolchain.
 
 ```bash
 # Build everything (bootloader + kernel + disk image)
-make all
+./builder.sh
+
+# Each build creates output/bytebandit-vNNN.iso and preserves older images
 
 # Build and display info
 make info
@@ -36,7 +38,7 @@ make clean
 # Boot OS (serial output to console)
 make run
 
-# Note: Currently boots to debugging stage (triple fault investigation)
+# Note: Attach the generated ISO as an optical disk in VirtualBox.
 ```
 
 ### Expected Output (When Boot Works)
@@ -77,6 +79,8 @@ kernel.ld           Linker script (memory layout)
 Makefile            Build system
 ARCHITECTURE.md     Detailed architecture documentation
 DEBUGGING.md        Boot issue diagnosis and debugging steps
+BYTEBANDIT_API.md   Headless system API and serial command reference
+CLI_APP_DEVELOPMENT.md  CLI application ABI and example
 ```
 
 ## Key Concepts
@@ -183,11 +187,19 @@ To add logging:
 outb(0x3F8, 'A');  // Write character to COM1
 ```
 
+### Headless Command Console
+
+Boot with `-serial stdio` and use the `bb>` prompt. The initial commands are
+`help`, `version`, `info`, `tasks`, `mem`, `echo TEXT`, and `clear`. See
+[BYTEBANDIT_API.md](BYTEBANDIT_API.md) for the API contract and command details.
+Application developers should also read
+[CLI_APP_DEVELOPMENT.md](CLI_APP_DEVELOPMENT.md).
+
 ## Common Tasks
 
 ### View Boot Log
 ```bash
-timeout 3 qemu-system-i386 -hda build/bytebandit.img -serial file:/tmp/log.txt
+timeout 3 qemu-system-i386 -cdrom output/bytebandit-vNNN.iso -display none -serial file:/tmp/log.txt
 cat /tmp/log.txt
 ```
 
@@ -210,12 +222,10 @@ i686-elf-objdump -t build/kernel.elf | grep -E "(_start|kernel_main|__bss)"
 
 ## Known Limitations
 
-1. **Boot Issue**: Triple fault during protected mode transition (under investigation)
-2. **No Interrupts**: IDT/IRQ handling not yet implemented
-3. **No Paging**: Direct memory access only, no virtual memory
-4. **No Multitasking**: Single-threaded kernel only
-5. **Limited Drivers**: Only VGA terminal (no keyboard, disk, network, etc.)
-6. **No Filesystem**: No disk access beyond bootloader
+1. **Preemption**: Full interrupt-frame task switching is still in progress
+2. **Input**: The command console currently uses polled COM1 input
+3. **Limited Drivers**: No keyboard, disk filesystem, network, or storage drivers yet
+4. **No GUI**: The system is intentionally text-only
 
 ## Next Milestones
 

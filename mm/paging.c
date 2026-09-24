@@ -22,6 +22,7 @@
 #include "serial.h"
 #include "vga.h"
 #include "panic.h"
+#include "mm/heap.h"
 #include <string.h>
 
 /* =========================================================================
@@ -98,6 +99,18 @@ static page_table_t *_get_page_table(uint32_t dir_idx) {
     }
     
     return (page_table_t *)(PDE_GET_TABLE(*pde));
+}
+
+static void *_alloc_aligned_page(void) {
+    uintptr_t raw = (uintptr_t)kmalloc(PAGE_SIZE * 2);
+    uintptr_t aligned;
+
+    if (raw == 0) {
+        return NULL;
+    }
+    aligned = (raw + PAGE_SIZE - 1) & PAGE_MASK;
+    memset((void *)aligned, 0, PAGE_SIZE);
+    return (void *)aligned;
 }
 
 /* =========================================================================
@@ -259,6 +272,41 @@ bool paging_map_page(uint32_t vaddr, uint32_t paddr, uint32_t flags) {
     return true;
 }
 
+bool paging_map_page_in_directory(page_directory_t *directory,
+                                  uint32_t vaddr, uint32_t paddr,
+                                  uint32_t flags) {
+    uint32_t dir_idx = VADDR_DIR_IDX(vaddr);
+    uint32_t tbl_idx = VADDR_TABLE_IDX(vaddr);
+    page_dir_entry_t *pde;
+    page_table_t *table;
+
+    if (directory == NULL || dir_idx >= 1024) {
+        return false;
+    }
+
+    pde = &directory->entries[dir_idx];
+    if (!(pde->value & PAGE_PRESENT)) {
+        table = (page_table_t *)_alloc_aligned_page();
+        if (table == NULL) {
+            return false;
+        }
+        uint32_t table_phys = paging_get_mapping((uint32_t)table);
+        if (table_phys == 0) {
+            return false;
+        }
+        pde->value = table_phys | PAGE_PRESENT | PAGE_WRITE;
+        if (flags & PAGE_USER) {
+            pde->value |= PAGE_USER;
+        }
+    } else {
+        table = (page_table_t *)PDE_GET_TABLE(*pde);
+    }
+
+    table->entries[tbl_idx].value = ALIGN_DOWN_PAGE(paddr) |
+                                    (flags & 0x00000FFF);
+    return true;
+}
+
 void paging_unmap_page(uint32_t vaddr) {
     vaddr = ALIGN_DOWN_PAGE(vaddr);
     
@@ -294,6 +342,18 @@ uint32_t paging_get_mapping(uint32_t vaddr) {
     
     /* Return physical address with offset preserved */
     return (pte->value & 0xFFFFF000) | offset;
+}
+
+uint32_t paging_get_mapping_flags(uint32_t vaddr) {
+    uint32_t dir_idx = VADDR_DIR_IDX(vaddr);
+    uint32_t tbl_idx = VADDR_TABLE_IDX(vaddr);
+    page_table_t *table = _get_page_table(dir_idx);
+
+    if (table == NULL || !(table->entries[tbl_idx].value & PAGE_PRESENT)) {
+        return 0;
+    }
+
+    return table->entries[tbl_idx].value & 0x00000FFF;
 }
 
 void paging_handle_page_fault(uint32_t error_code) {
@@ -350,6 +410,29 @@ void paging_handle_page_fault(uint32_t error_code) {
 
 uint32_t paging_get_page_dir(void) {
     return (uintptr_t)&kernel_page_dir;
+}
+
+uint32_t paging_create_user_directory(page_directory_t **directory) {
+    page_directory_t *user_directory;
+    uint32_t physical;
+
+    if (directory == NULL) {
+        return 0;
+    }
+
+    user_directory = (page_directory_t *)_alloc_aligned_page();
+    if (user_directory == NULL) {
+        return 0;
+    }
+
+    memcpy(user_directory, &kernel_page_dir, PAGE_SIZE);
+    physical = paging_get_mapping((uint32_t)user_directory);
+    if (physical == 0) {
+        return 0;
+    }
+
+    *directory = user_directory;
+    return physical;
 }
 
 void paging_load_page_dir(uint32_t pdir_addr) {

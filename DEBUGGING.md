@@ -1,15 +1,17 @@
 # ByteBandit OS - Debugging Guide
 
-## Current Boot Issue: Triple Fault During Protected Mode Transition
+## Boot Diagnostics
 
 ### Symptoms
-- QEMU: "Booting from Hard Disk..." then system reboots
-- Serial log shows SeaBIOS restarting in a loop
-- Kernel never executes
+- QEMU or VirtualBox reaches the kernel serial initialization
+- The `bb>` console prompt appears after bootstrap
+- A reset or missing prompt indicates a boot-chain or interrupt regression
 
 ### Root Cause Analysis
 
-The bootloader is executing (confirmed by BIOS output), but a **triple fault** occurs during or after the protected mode transition. A triple fault triggers a system reset.
+The boot image is a 1.44 MB floppy-emulation El Torito image embedded in an
+ISO9660 filesystem. The bootloader loads the kernel across CHS tracks before
+entering protected mode.
 
 ### Possible Issues
 
