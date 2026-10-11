@@ -5,6 +5,7 @@
  */
 
 #include "kernel/task.h"
+#include "kernel/scheduler.h"
 #include "mm/heap.h"
 #include "mm/pmm.h"
 #include "mm/paging.h"
@@ -54,6 +55,11 @@ task_t *task_create(const char *name, uint32_t entry_point, uint32_t flags) {
     task->state = TASK_STATE_CREATED;
     task->priority = 20;  /* Default medium priority */
     task->flags = flags;
+    task->uid = 0;
+    task->gid = 0;
+    task->euid = 0;
+    task->egid = 0;
+    task->umask = 0022;
     task->entry_point = entry_point;
     task->cpu_time = 0;
     task->created_time = 0;  /* TODO: get current tick */
@@ -127,6 +133,53 @@ task_t *task_create(const char *name, uint32_t entry_point, uint32_t flags) {
                   task->pid, task->name, entry_point);
     
     return task;
+}
+
+void task_set_identity(task_t *task, uint32_t uid, uint32_t gid) {
+    if (task == NULL) {
+        return;
+    }
+    task->uid = uid;
+    task->gid = gid;
+    task->euid = uid;
+    task->egid = gid;
+}
+
+uint32_t task_get_current_uid(void) {
+    task_t *current = scheduler_current();
+    return current ? current->euid : 0;
+}
+
+uint32_t task_get_current_gid(void) {
+    task_t *current = scheduler_current();
+    return current ? current->egid : 0;
+}
+
+uint32_t task_get_current_euid(void) {
+    task_t *current = scheduler_current();
+    return current ? current->euid : 0;
+}
+
+uint32_t task_get_current_egid(void) {
+    task_t *current = scheduler_current();
+    return current ? current->egid : 0;
+}
+
+bool task_current_has_access(uint32_t owner_uid, uint32_t owner_gid,
+                            uint32_t mode, uint32_t requested_access) {
+    uint32_t uid = task_get_current_uid();
+    uint32_t gid = task_get_current_gid();
+    uint32_t mask = 0;
+
+    if (uid == 0 || uid == owner_uid) {
+        mask = (mode >> 6) & 0x7;
+    } else if (gid == owner_gid) {
+        mask = (mode >> 3) & 0x7;
+    } else {
+        mask = mode & 0x7;
+    }
+
+    return (mask & requested_access) == requested_access;
 }
 
 task_t *task_find(uint32_t pid) {

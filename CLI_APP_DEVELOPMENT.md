@@ -28,6 +28,9 @@ host libc or a desktop operating system.
 | `bb_uptime_ticks()` | Read 100 Hz timer ticks | Tick count |
 | `bb_sleep_ms(milliseconds)` | Wait using kernel timer | Status code |
 | `bb_get_system_info(&info)` | Read memory/API information | Status code |
+| `bb_registry_query(path, buffer, length)` | Query a registry value | Value length or negative status |
+| `bb_registry_set(path, value)` | Set a registry value | `BB_STATUS_OK` or negative status |
+| `bb_list_files()` | List the current VFS entries | `BB_STATUS_OK` or negative status |
 | `bb_spawn(path, argv)` | Start a process | `BB_STATUS_NOSYS` currently |
 | `bb_wait(process, &status)` | Wait for a process handle | `BB_STATUS_NOSYS` currently |
 | `bb_exit(status)` | Terminate the process | Does not return |
@@ -73,6 +76,12 @@ provide their own startup entry point until the ByteBandit C runtime is added.
 The current kernel has ELF segment loading support, but a complete user-process
 launch path and preemptive context switch are still being completed.
 
+Version `0.3` adds Linux-style user identity tracking and VFS permission checks
+so user code can query runtime metadata and manage access on a Unix-like model
+without directly touching kernel internals. The registry APIs use the same
+Linux-style status codes as the rest of the ABI, while VFS output remains
+console-only until a broader user-space file browser is added.
+
 The native shell currently provides Linux-like `ls`, `cat`, `head`, `pwd`,
 `ps`, `free`, `uptime`, `uname`, `whoami`, `id`, `env`, `mount`, `true`, and
 `false` commands. These are kernel commands while user-process launching is
@@ -86,7 +95,7 @@ being completed.
   calls copy data.
 - Applications must not access kernel addresses or hardware ports directly.
 - Negative results are ByteBandit status/error values.
-- API version `0.1` is exposed through `bb_system_info_t`.
+- API version `0.3` is exposed through `bb_system_info_t`.
 
 ## Future GUI Compatibility
 

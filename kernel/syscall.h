@@ -58,6 +58,8 @@
 #define SYS_PIPE        42  /* Create pipe */
 #define SYS_TIMES       43  /* Get process times */
 #define SYS_BRK         45  /* Change data segment size */
+#define SYS_SETGID      46  /* Set group ID */
+#define SYS_GETGID      47  /* Get group ID */
 #define SYS_SIGNAL      48  /* Set signal handler (deprecated) */
 #define SYS_GETPGRP     65  /* Get process group */
 #define SYS_SETSID      66  /* Create new session */
@@ -140,6 +142,7 @@ uint32_t syscall_getpid(void);
  * @return User ID of current process
  */
 uint32_t syscall_getuid(void);
+uint32_t syscall_getgid(void);
 
 /**
  * SYS_KILL - Send signal to process.
@@ -159,5 +162,9 @@ int32_t syscall_mkdir(const char *path);
 int32_t syscall_unlink(const char *path);
 int32_t syscall_registry_query(const char *path, char *buffer, uint32_t length);
 int32_t syscall_registry_set(const char *path, const char *value);
+int32_t syscall_chmod(const char *path, uint32_t mode);
+int32_t syscall_setuid(uint32_t uid);
+int32_t syscall_setgid(uint32_t gid);
+int32_t syscall_vfs_list(void);
 
 #endif /* _BYTEBANDIT_SYSCALL_H */

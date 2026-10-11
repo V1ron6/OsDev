@@ -35,8 +35,14 @@ make clean
 ### Run in QEMU
 
 ```bash
-# Boot OS (serial output to console)
-make run
+# Build and boot OS with the persistent disk attached
+./run.sh
+
+# Reset the ByteFS disk, then boot
+./run.sh --reset-disk
+
+# Boot existing images without rebuilding
+./run.sh --no-build
 
 # Note: Attach the generated ISO as an optical disk in VirtualBox.
 ```
@@ -81,9 +87,52 @@ ARCHITECTURE.md     Detailed architecture documentation
 DEBUGGING.md        Boot issue diagnosis and debugging steps
 BYTEBANDIT_API.md   Headless system API and serial command reference
 CLI_APP_DEVELOPMENT.md  CLI application ABI and example
+DESKTOP_ROADMAP.md  Staged path from kernel foundation to graphical desktop
 ```
 
+### Persistent ByteFS Storage
+
+The standard build creates `output/bytebandit-data.img`, an 8 MiB writable ATA
+disk image used by the ByteFS backend. The host build creates a ByteFS MBR
+partition starting at LBA 2048. The kernel stores inode metadata and file
+payloads in alternating committed slots inside that partition, protected by
+CRC32, and reloads the newest complete slot on the next boot. The image is not removed
+by `make clean`, so files survive kernel rebuilds and QEMU restarts.
+
+Run the system with:
+
+```bash
+make run
+```
+
+Delete `output/bytebandit-data.img` only when you want ByteFS to format a fresh
+volume. The current on-disk format is intentionally simple and fixed-size; it
+is a persistence foundation, not yet a partitioned production filesystem.
+
 ## Key Concepts
+#### Linux-like identity and permissions model
+
+The kernel now maintains a minimal Linux-style identity model for tasks:
+- each task has a real and effective UID/GID
+- root is UID 0 and has full access to VFS entries and registry objects
+- non-root tasks are checked against owner/group/other permission bits
+- VFS nodes default to 0644 for files and 0755 for directories
+
+This gives the project a clear path toward multi-user access control without
+requiring a complete user database or full PAM integration yet.
+
+#### ByteFS inode foundation
+
+The VFS layer is built around a lightweight inode tree rather than a flat,
+non-structured file list. This means the project has a real filesystem model to
+extend:
+- directory nodes and file nodes share the same metadata table
+- each node records path, parent, owner, group, and mode
+- file payloads are kept in an in-memory data buffer for the current runtime
+- later storage backends can replace the buffer while keeping the same API
+
+This is the next stepping stone toward a full block-based operating system with
+persistent storage and a packaged user environment.
 
 ### Real Mode → Protected Mode Transition
 

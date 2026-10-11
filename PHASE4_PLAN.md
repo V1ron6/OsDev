@@ -844,7 +844,17 @@ At the end of Phase 4:
 
 ## Next Phase (Phase 5)
 
-After Phase 4 completes, consider:
+After Phase 4 completes, follow [DESKTOP_ROADMAP.md](DESKTOP_ROADMAP.md) for
+the staged transition from a stable multi-process kernel to a graphical
+desktop. The first desktop stages are:
+
+- keyboard and pointer input drivers
+- framebuffer/VBE display and software rendering
+- user-space window server and compositor
+- desktop shell, terminal, file manager, launcher, and settings services
+- application IPC, clipboard, notifications, and persistent preferences
+
+Additional kernel and platform work includes:
 - File I/O and filesystem basics
 - Process signals
 - Process groups and sessions

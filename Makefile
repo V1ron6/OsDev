@@ -33,9 +33,11 @@ KERNEL_ELF = $(BUILD)/kernel.elf
 KERNEL_BIN = $(BUILD)/kernel.bin
 BOOT_IMAGE = $(BUILD)/bytebandit-boot.img
 MKISO = $(BUILD)/mkiso
+MKDISK = $(BUILD)/mkdisk
 OUTPUT = output
 ISO_NAME ?= bytebandit.iso
 OS_IMAGE = $(OUTPUT)/$(ISO_NAME)
+PERSISTENT_DISK = $(OUTPUT)/bytebandit-data.img
 
 # Source files
 KERNEL_ASM_SOURCES = \
@@ -54,6 +56,7 @@ KERNEL_C_SOURCES = \
     $(KERNEL)/scheduler.c \
     $(DRIVERS)/vga.c \
     $(DRIVERS)/serial.c \
+	$(DRIVERS)/ata.c \
     $(ARCH)/idt.c \
     $(ARCH)/isr.c \
     $(ARCH)/pic.c \
@@ -78,7 +81,7 @@ KERNEL_OBJ += $(patsubst %.asm,$(BUILD)/%.o,$(KERNEL_ASM_SOURCES))
 KERNEL_OBJ += $(BUILD)/$(ARCH)/context_asm.o
 
 # Default target
-all: $(OS_IMAGE)
+all: $(OS_IMAGE) $(PERSISTENT_DISK)
 
 # Build bootloader
 $(BOOTLOADER): $(BOOT)/boot.asm
@@ -148,8 +151,8 @@ $(KERNEL_BIN): $(KERNEL_ELF)
 $(BOOT_IMAGE): $(BOOTLOADER) $(KERNEL_BIN)
 	@KERNEL_SIZE=$$(stat -c%s $(KERNEL_BIN)); \
 	KERNEL_SECTORS=$$((($$KERNEL_SIZE + 511) / 512)); \
-	if [ $$KERNEL_SECTORS -gt 128 ]; then \
-		echo "ERROR: Kernel needs $$KERNEL_SECTORS sectors, bootloader supports 128"; exit 1; \
+	if [ $$KERNEL_SECTORS -gt 200 ]; then \
+		echo "ERROR: Kernel needs $$KERNEL_SECTORS sectors, bootloader supports 200"; exit 1; \
 	fi
 	@mkdir -p $(dir $@)
 	truncate -s 1474560 $@
@@ -170,15 +173,29 @@ $(OS_IMAGE): $(BOOT_IMAGE) $(MKISO)
 	@SIZE=$$(stat -c%s $@ 2>/dev/null || stat -f%z $@ 2>/dev/null); \
 	echo "  Image size: $$SIZE bytes"
 
+# Create the writable disk used by the persistent ByteFS backend.
+$(MKDISK): tools/mkdisk.c
+	@mkdir -p $(dir $@)
+	@echo "[HOSTCC] $<"
+	$(HOSTCC) -std=c99 -Wall -Wextra -pedantic -O2 -o $@ $<
+
+$(PERSISTENT_DISK): $(MKDISK)
+	@mkdir -p $(OUTPUT)
+	@if [ ! -f $@ ]; then \
+		echo "[DISK] Creating persistent ByteFS disk..."; \
+		truncate -s 8M $@; \
+	fi
+	$(MKDISK) $@
+
 # Run in QEMU
-run: $(OS_IMAGE)
+run: $(OS_IMAGE) $(PERSISTENT_DISK)
 	@echo "[QEMU] Starting emulator..."
-	qemu-system-i386 -cdrom $(OS_IMAGE) -serial stdio
+	qemu-system-i386 -boot order=d -cdrom $(OS_IMAGE) -drive format=raw,file=$(PERSISTENT_DISK) -serial stdio
 
 # Run with GDB debugging
-debug: $(OS_IMAGE)
+debug: $(OS_IMAGE) $(PERSISTENT_DISK)
 	@echo "[QEMU] Starting with GDB debugging..."
-	qemu-system-i386 -cdrom $(OS_IMAGE) -serial stdio -s -S
+	qemu-system-i386 -boot order=d -cdrom $(OS_IMAGE) -drive format=raw,file=$(PERSISTENT_DISK) -serial stdio -s -S
 
 # Generate disassembly
 disasm: $(KERNEL_ELF)
@@ -198,11 +215,12 @@ info:
 	@echo "  Kernel ELF: $(KERNEL_ELF)"
 	@echo "  Kernel BIN: $(KERNEL_BIN)"
 	@echo "  Boot Image: $(BOOT_IMAGE)"
+	@echo "  Persistent Disk: $(PERSISTENT_DISK)"
 	@echo "  OS Image: $(OS_IMAGE)"
 	@echo ""
 	@echo "Targets:"
 	@echo "  make all    - Build complete OS image"
-	@echo "  make run    - Build and run in QEMU"
+	@echo "  make run    - Build and boot in QEMU with persistent disk"
 	@echo "  make debug  - Run with GDB debugging enabled"
 	@echo "  make disasm - Generate kernel disassembly"
 	@echo "  make clean  - Remove build artifacts"

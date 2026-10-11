@@ -12,6 +12,11 @@
 #define BB_SYS_UNLINK  10
 #define BB_SYS_MKDIR   39
 #define BB_SYS_GETPID  20
+#define BB_SYS_GETUID  24
+#define BB_SYS_SETUID  23
+#define BB_SYS_GETGID  47
+#define BB_SYS_SETGID  46
+#define BB_SYS_CHMOD   15
 #define BB_SYS_UPTIME  100
 #define BB_SYS_SLEEP   101
 #define BB_SYS_GETINFO 102
@@ -19,6 +24,7 @@
 #define BB_SYS_WAIT    111
 #define BB_SYS_REG_QUERY 120
 #define BB_SYS_REG_SET   121
+#define BB_SYS_VFS_LIST  122
 
 static inline int32_t bb_syscall0(uint32_t number) {
     int32_t result;
@@ -85,6 +91,30 @@ static inline int32_t bb_registry_query(const char *path, char *buffer,
 static inline int32_t bb_registry_set(const char *path, const char *value) {
     return bb_syscall3(BB_SYS_REG_SET, (uint32_t)path,
                        (uint32_t)value, 0);
+}
+
+static inline int32_t bb_list_files(void) {
+    return bb_syscall0(BB_SYS_VFS_LIST);
+}
+
+static inline uint32_t bb_getuid(void) {
+    return (uint32_t)bb_syscall0(BB_SYS_GETUID);
+}
+
+static inline int32_t bb_setuid(uint32_t uid) {
+    return bb_syscall1(BB_SYS_SETUID, uid);
+}
+
+static inline uint32_t bb_getgid(void) {
+    return (uint32_t)bb_syscall0(BB_SYS_GETGID);
+}
+
+static inline int32_t bb_setgid(uint32_t gid) {
+    return bb_syscall1(BB_SYS_SETGID, gid);
+}
+
+static inline int32_t bb_chmod(const char *path, uint32_t mode) {
+    return bb_syscall3(BB_SYS_CHMOD, (uint32_t)path, mode, 0);
 }
 
 static inline uint32_t bb_getpid(void) {

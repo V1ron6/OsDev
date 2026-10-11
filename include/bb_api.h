@@ -4,7 +4,7 @@
 #include "types.h"
 
 #define BB_API_MAJOR 0
-#define BB_API_MINOR 1
+#define BB_API_MINOR 3
 #define BB_API_NAME "ByteBandit System API"
 
 #define BB_STATUS_OK       0
@@ -65,6 +65,9 @@ typedef struct {
 int bb_api_get_info(bb_system_info_t *info);
 int bb_api_write(int fd, const char *buffer, uint32_t length);
 int bb_api_task_list(void);
+int bb_api_registry_query(const char *path, char *buffer, uint32_t length);
+int bb_api_registry_set(const char *path, const char *value);
+int bb_api_vfs_list(void);
 void bb_api_print_version(void);
 
 #endif

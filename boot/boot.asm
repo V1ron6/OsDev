@@ -21,7 +21,7 @@
 [BITS 16]                               ; Real mode assembly (16-bit)
 [ORG 0x7C00]                            ; Bootloader loaded here by BIOS
 
-%define KERNEL_SECTORS 128              ; Maximum kernel payload: 64 KiB
+%define KERNEL_SECTORS 200              ; Maximum kernel payload: 100 KiB
 
 boot_start:
     ; Disable interrupts immediately - we manage CPU state now
@@ -71,6 +71,11 @@ boot_start:
     jc disk_error
 
     add bx, 512
+    jnc .load_address_ready
+    mov ax, es
+    add ax, 0x1000
+    mov es, ax
+.load_address_ready:
     dec byte [sectors_left]
     jz kernel_loaded
 

@@ -5,6 +5,8 @@
 #include "kernel/task.h"
 #include "mm/heap.h"
 #include "mm/pmm.h"
+#include "fs/registry.h"
+#include "fs/vfs.h"
 
 int bb_api_get_info(bb_system_info_t *info) {
     uint32_t heap_used;
@@ -40,6 +42,25 @@ int bb_api_write(int fd, const char *buffer, uint32_t length) {
 
 int bb_api_task_list(void) {
     task_list_dump();
+    return BB_STATUS_OK;
+}
+
+int bb_api_registry_query(const char *path, char *buffer, uint32_t length) {
+    if (path == NULL || buffer == NULL || length == 0) {
+        return BB_STATUS_INVALID;
+    }
+    return registry_query(path, buffer, length);
+}
+
+int bb_api_registry_set(const char *path, const char *value) {
+    if (path == NULL || value == NULL) {
+        return BB_STATUS_INVALID;
+    }
+    return registry_set(path, value);
+}
+
+int bb_api_vfs_list(void) {
+    vfs_list();
     return BB_STATUS_OK;
 }
 

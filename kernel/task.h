@@ -97,6 +97,11 @@ typedef struct {
     uint32_t kernel_stack;     /* Kernel stack pointer */
     uint32_t entry_point;      /* Entry point address */
     uint32_t flags;            /* Task flags */
+    uint32_t uid;              /* Real user ID */
+    uint32_t gid;              /* Real group ID */
+    uint32_t euid;             /* Effective user ID */
+    uint32_t egid;             /* Effective group ID */
+    uint32_t umask;            /* Permission mask for new files */
     uint32_t cpu_time;         /* Total CPU time (ticks) */
     uint32_t created_time;     /* Creation time (ticks) */
     char name[32];             /* Task name for debugging */
@@ -125,6 +130,19 @@ typedef struct {
  * Note: Task is created but not scheduled yet. Call task_spawn() to start.
  */
 task_t *task_create(const char *name, uint32_t entry_point, uint32_t flags);
+
+/** Set the effective and real identity of a task. */
+void task_set_identity(task_t *task, uint32_t uid, uint32_t gid);
+
+/** Return the identity of the current task. */
+uint32_t task_get_current_uid(void);
+uint32_t task_get_current_gid(void);
+uint32_t task_get_current_euid(void);
+uint32_t task_get_current_egid(void);
+
+/** Permission helper for Linux-like owner/group/other checks. */
+bool task_current_has_access(uint32_t owner_uid, uint32_t owner_gid,
+                             uint32_t mode, uint32_t requested_access);
 
 /** Create a user task by loading an ELF32 executable image. */
 task_t *task_create_from_elf(const char *name, void *image,

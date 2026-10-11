@@ -167,3 +167,30 @@ int strncmp(const char *s1, const char *s2, size_t n) {
     }
     return 0;
 }
+
+/**
+ * strrchr() - Find the last occurrence of a character in a string
+ *
+ * Args:
+ *   s - Input string
+ *   c - Character to locate
+ *
+ * Returns:
+ *   Pointer to the last occurrence, or NULL if absent
+ */
+char *strrchr(const char *s, int c) {
+    const char *last = NULL;
+
+    while (*s != '\0') {
+        if (*s == (char)c) {
+            last = s;
+        }
+        s++;
+    }
+
+    if (c == '\0' && last == NULL) {
+        return (char *)s;
+    }
+
+    return (char *)last;
+}

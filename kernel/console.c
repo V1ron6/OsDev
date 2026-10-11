@@ -7,6 +7,9 @@
 #include "arch/x86/pit.h"
 #include "fs/vfs.h"
 #include "fs/registry.h"
+#include "kernel/task.h"
+#include "kernel/syscall.h"
+#include "x86.h"
 #include <string.h>
 
 #define CONSOLE_LINE_LENGTH 128
@@ -144,6 +147,59 @@ static void console_info(void) {
                info.heap_used, info.heap_free);
 }
 
+static uint32_t console_parse_uint(const char *text) {
+    uint32_t value = 0;
+    if (text == NULL || *text == '\0') {
+        return 0;
+    }
+    while (*text >= '0' && *text <= '9') {
+        value = value * 10 + (uint32_t)(*text - '0');
+        text++;
+    }
+    return value;
+}
+
+static void console_kill(const char *pid_text, const char *signal_text) {
+    uint32_t pid = console_parse_uint(pid_text);
+    uint32_t signal = console_parse_uint(signal_text);
+    int32_t result = syscall_kill(pid, signal);
+
+    if (result != BB_STATUS_OK) {
+        console_puts("kill: permission denied or invalid target\n");
+    }
+}
+
+static void console_halt(void) {
+    console_puts("System halted.\n");
+    disable_interrupts();
+    while (1) {
+        halt();
+    }
+}
+
+static void console_shutdown(void) {
+    console_puts("Shutting down.\n");
+    disable_interrupts();
+    outw(0x0604, 0x2000);
+    while (1) {
+        halt();
+    }
+}
+
+static void console_reboot(void) {
+    console_puts("Restarting.\n");
+    disable_interrupts();
+    for (uint32_t i = 0; i < 100000; i++) {
+        if ((inb(0x0064) & 0x02) == 0) {
+            break;
+        }
+    }
+    outb(0x0064, 0xFE);
+    while (1) {
+        halt();
+    }
+}
+
 static void console_execute(void) {
     char *argument = NULL;
     char *second_argument = NULL;
@@ -172,8 +228,9 @@ static void console_execute(void) {
 
     if (strcmp(console_line, "help") == 0) {
         console_puts("commands: cat clear cp echo env files free help id ls mkdir\n");
-        console_puts("          mount mem ps pwd registry rm tasks touch true\n");
-        console_puts("          uname uptime whoami write\n");
+        console_puts("          kill mount mem poweroff ps pwd registry reboot\n");
+        console_puts("          restart rm shutdown sleep stat sync tasks touch\n");
+        console_puts("          true uname uptime whoami write halt\n");
     } else if (strcmp(console_line, "version") == 0) {
         bb_api_print_version();
     } else if (strcmp(console_line, "info") == 0) {
@@ -186,6 +243,13 @@ static void console_execute(void) {
         console_free();
     } else if (strcmp(console_line, "files") == 0) {
         vfs_list();
+    } else if (strcmp(console_line, "stat") == 0) {
+        if (argument == NULL || vfs_stat(argument) != BB_STATUS_OK) {
+            console_puts("stat: file not found\n");
+        }
+    } else if (strcmp(console_line, "sync") == 0) {
+        vfs_sync();
+        console_print_line("filesystem synchronized");
     } else if (strcmp(console_line, "registry") == 0) {
         registry_list();
     } else if (strcmp(console_line, "ls") == 0) {
@@ -213,13 +277,25 @@ static void console_execute(void) {
         console_uname();
     } else if (strcmp(console_line, "uptime") == 0) {
         console_uptime();
+    } else if (strcmp(console_line, "sleep") == 0) {
+        pit_sleep_ms(console_parse_uint(argument));
     } else if (strcmp(console_line, "ps") == 0 ||
                strcmp(console_line, "tasks") == 0) {
         bb_api_task_list();
     } else if (strcmp(console_line, "whoami") == 0) {
-        console_print_line("root");
+        if (task_get_current_uid() == 0) {
+            console_print_line("root");
+        } else {
+            serial_printf("user%u\n", task_get_current_uid());
+            vga_printf("user%u\n", task_get_current_uid());
+        }
     } else if (strcmp(console_line, "id") == 0) {
-        console_print_line("uid=0(root) gid=0(root) groups=0(root)");
+        serial_printf("uid=%u gid=%u groups=%u\n",
+                      task_get_current_uid(), task_get_current_gid(),
+                      task_get_current_gid());
+        vga_printf("uid=%u gid=%u groups=%u\n",
+                   task_get_current_uid(), task_get_current_gid(),
+                   task_get_current_gid());
     } else if (strcmp(console_line, "env") == 0) {
         registry_list();
     } else if (strcmp(console_line, "mount") == 0) {
@@ -236,6 +312,16 @@ static void console_execute(void) {
     } else if (strcmp(console_line, "clear") == 0) {
         vga_clear(VGA_COLOR_BLACK);
         console_puts("\n");
+    } else if (strcmp(console_line, "kill") == 0) {
+        console_kill(argument, second_argument);
+    } else if (strcmp(console_line, "shutdown") == 0 ||
+               strcmp(console_line, "poweroff") == 0) {
+        console_shutdown();
+    } else if (strcmp(console_line, "reboot") == 0 ||
+               strcmp(console_line, "restart") == 0) {
+        console_reboot();
+    } else if (strcmp(console_line, "halt") == 0) {
+        console_halt();
     } else {
         console_puts("unknown command; type 'help'\n");
     }

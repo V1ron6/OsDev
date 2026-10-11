@@ -224,6 +224,18 @@ Then: `cat /tmp/serial.log | grep \[BP`
 - **OSDev.org**: Bootloader pitfalls
 - **QEMU Docs**: Debugging with GDB
 
+### Persistent Disk Testing
+
+`./run.sh` attaches `output/bytebandit-data.img` as a raw ATA disk and boots
+from the ISO explicitly. The disk contains a ByteFS partition starting at LBA
+2048. On the
+first boot the kernel prints `Formatting persistent ByteFS volume`; subsequent
+boots should print `Loaded persistent ByteFS volume`. Keep this image when
+rebuilding the ISO. Remove it to intentionally reset filesystem state.
+
+Use `./run.sh --no-build` for a fast reboot, `./run.sh --reset-disk` to create
+a fresh volume, or append QEMU options such as `-s -S` for debugger startup.
+
 ---
 
 ## Workaround: Test Without Disk Loading

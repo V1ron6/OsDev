@@ -83,7 +83,7 @@
 1. BIOS loads bootloader at 0x7C00
 2. Bootloader checks boot drive (DL)
 3. Bootloader enables A20 line
-4. Bootloader loads kernel from disk (8 sectors, starting at sector 2)
+4. Bootloader loads the kernel from disk (up to 200 sectors, starting at sector 2)
 5. Bootloader installs GDT (flat model, 4GB code+data)
 6. Bootloader sets CR0.PE to enable protected mode
 7. Far jump to `pm_entry` to flush pipeline

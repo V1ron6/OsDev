@@ -130,6 +130,22 @@ uint32_t syscall_handler(uint32_t int_no, uint32_t syscall_no,
         case SYS_GETUID:
             result = syscall_getuid();
             break;
+
+        case SYS_SETUID:
+            result = (uint32_t)syscall_setuid(arg0);
+            break;
+
+        case SYS_GETGID:
+            result = syscall_getgid();
+            break;
+
+        case SYS_SETGID:
+            result = (uint32_t)syscall_setgid(arg0);
+            break;
+
+        case SYS_CHMOD:
+            result = (uint32_t)syscall_chmod((const char *)arg0, arg1);
+            break;
             
         case SYS_KILL:
             result = (uint32_t)syscall_kill(arg0, arg1);
@@ -155,6 +171,10 @@ uint32_t syscall_handler(uint32_t int_no, uint32_t syscall_no,
         case BB_SYS_REG_SET:
             result = (uint32_t)syscall_registry_set((const char *)arg0,
                                                      (const char *)arg1);
+            break;
+
+        case BB_SYS_VFS_LIST:
+            result = (uint32_t)syscall_vfs_list();
             break;
             
         default:
@@ -307,24 +327,53 @@ uint32_t syscall_getpid(void) {
 }
 
 uint32_t syscall_getuid(void) {
-    /* TODO: Implement user ID tracking
-     *
-     * For now, all processes are "root" (UID 0).
-     */
-    return 0;
+    return task_get_current_uid();
+}
+
+uint32_t syscall_getgid(void) {
+    return task_get_current_gid();
+}
+
+int32_t syscall_setuid(uint32_t uid) {
+    task_t *current = scheduler_current();
+    if (current == NULL) {
+        return BB_STATUS_INVALID;
+    }
+    if (task_get_current_euid() != 0) {
+        return BB_STATUS_PERM;
+    }
+    task_set_identity(current, uid, current->gid);
+    return BB_STATUS_OK;
+}
+
+int32_t syscall_setgid(uint32_t gid) {
+    task_t *current = scheduler_current();
+    if (current == NULL) {
+        return BB_STATUS_INVALID;
+    }
+    if (task_get_current_euid() != 0) {
+        return BB_STATUS_PERM;
+    }
+    current->gid = gid;
+    current->egid = gid;
+    return BB_STATUS_OK;
 }
 
 int32_t syscall_kill(uint32_t pid, uint32_t sig) {
+    task_t *current = scheduler_current();
     task_t *target = task_find(pid);
-    if (target == NULL || sig == 0 || sig > 64) {
-        return -1;
+    if (current == NULL || target == NULL || sig == 0 || sig > 64) {
+        return BB_STATUS_INVALID;
+    }
+    if (current->euid != 0 && current->euid != target->euid) {
+        return BB_STATUS_PERM;
     }
 
     serial_printf("[SYSCALL] kill(%u, %u)\n", pid, sig);
     if (sig == 9 || sig == 15) {
         task_exit(target, -(int32_t)sig);
     }
-    return 0;
+    return BB_STATUS_OK;
 }
 
 uint32_t syscall_uptime(void) {
@@ -364,5 +413,21 @@ int32_t syscall_registry_set(const char *path, const char *value) {
         !syscall_copy_user_string(value, kernel_value, sizeof(kernel_value))) {
         return BB_STATUS_INVALID;
     }
+    if (task_get_current_euid() != 0) {
+        return BB_STATUS_PERM;
+    }
     return registry_set(kernel_path, kernel_value);
+}
+
+int32_t syscall_chmod(const char *path, uint32_t mode) {
+    char kernel_path[64];
+    if (!syscall_copy_user_string(path, kernel_path, sizeof(kernel_path))) {
+        return BB_STATUS_INVALID;
+    }
+    return vfs_chmod(kernel_path, mode);
+}
+
+int32_t syscall_vfs_list(void) {
+    vfs_list();
+    return BB_STATUS_OK;
 }
