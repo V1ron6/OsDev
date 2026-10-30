@@ -66,6 +66,15 @@ void scheduler_enqueue(task_t *task) {
         serial_puts("[SCHEDULER] enqueue: NULL task\n");
         return;
     }
+
+    if (task->state == TASK_STATE_DYING || task->state == TASK_STATE_DEAD) {
+        serial_printf("[SCHEDULER] Refusing terminated task %u\n", task->pid);
+        return;
+    }
+
+    if (task->queued) {
+        return;
+    }
     
     if (queue_size >= MAX_TASKS) {
         serial_puts("[SCHEDULER] Ready queue full, cannot enqueue task\n");
@@ -76,6 +85,7 @@ void scheduler_enqueue(task_t *task) {
     ready_queue[queue_tail] = task;
     queue_tail = (queue_tail + 1) % MAX_TASKS;
     queue_size++;
+    task->queued = true;
     
     /* Update task state */
     task->state = TASK_STATE_READY;
@@ -88,10 +98,47 @@ task_t *scheduler_dequeue(void) {
     
     /* Remove from head of queue */
     task_t *task = ready_queue[queue_head];
+    ready_queue[queue_head] = NULL;
     queue_head = (queue_head + 1) % MAX_TASKS;
     queue_size--;
+
+    if (task) {
+        task->queued = false;
+    }
     
     return task;
+}
+
+void scheduler_remove(task_t *task) {
+    uint32_t index;
+    uint32_t offset;
+
+    if (!task || !task->queued || queue_size == 0) {
+        return;
+    }
+
+    index = queue_head;
+    for (offset = 0; offset < queue_size; offset++) {
+        if (ready_queue[index] == task) {
+            uint32_t next = index;
+            uint32_t remaining = queue_size - offset - 1;
+
+            for (uint32_t i = 0; i < remaining; i++) {
+                uint32_t after = (next + 1) % MAX_TASKS;
+                ready_queue[next] = ready_queue[after];
+                next = after;
+            }
+
+            queue_tail = (queue_tail + MAX_TASKS - 1) % MAX_TASKS;
+            ready_queue[queue_tail] = NULL;
+            queue_size--;
+            task->queued = false;
+            return;
+        }
+        index = (index + 1) % MAX_TASKS;
+    }
+
+    task->queued = false;
 }
 
 task_t *scheduler_current(void) {
@@ -108,6 +155,11 @@ void scheduler_set_current(task_t *task) {
 task_t *scheduler_select_next(void) {
     task_t *current = current_task;
     task_t *next = scheduler_dequeue();
+
+    while (next && (next->state == TASK_STATE_DYING ||
+                    next->state == TASK_STATE_DEAD)) {
+        next = scheduler_dequeue();
+    }
     
     /* Keep a runnable task in rotation after its time slice. */
     if (current && current != idle_task &&

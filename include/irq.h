@@ -16,6 +16,28 @@
 
 #include "types.h"
 
+/* Register frame built by irq.asm before entering C code. */
+typedef struct {
+	uint32_t gs;
+	uint32_t fs;
+	uint32_t es;
+	uint32_t ds;
+	uint32_t edi;
+	uint32_t esi;
+	uint32_t ebp;
+	uint32_t ebx;
+	uint32_t edx;
+	uint32_t ecx;
+	uint32_t eax;
+	uint32_t irq;
+	uint32_t error_code;
+	uint32_t eip;
+	uint32_t cs;
+	uint32_t eflags;
+	uint32_t useresp;
+	uint32_t userss;
+} irq_frame_t;
+
 /* Hardware interrupt handler callback
  *
  * Called when hardware IRQ occurs.
@@ -27,6 +49,9 @@
  * @param irq: IRQ number (0-15)
  */
 typedef void (*irq_handler_t)(uint8_t irq);
+
+/* Optional handler that may inspect or modify the interrupt return frame. */
+typedef uint32_t (*irq_frame_handler_t)(uint8_t irq, irq_frame_t *frame);
 
 /* Initialize IRQ system
  *
@@ -50,6 +75,9 @@ void irq_init(void);
  * Handlers should be quick and not perform blocking operations.
  */
 void irq_install_handler(uint8_t irq, irq_handler_t handler);
+
+/* Register a frame-aware handler for scheduler or low-level IRQ work. */
+void irq_install_frame_handler(uint8_t irq, irq_frame_handler_t handler);
 
 /* Get registered handler for IRQ */
 irq_handler_t irq_get_handler(uint8_t irq);

@@ -36,6 +36,9 @@ void scheduler_init(void);
  */
 void scheduler_enqueue(task_t *task);
 
+/** Remove a task from the ready queue if it is currently queued. */
+void scheduler_remove(task_t *task);
+
 /**
  * Remove and return next task from ready queue.
  *

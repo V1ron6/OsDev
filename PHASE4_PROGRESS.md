@@ -1,6 +1,7 @@
 # ByteBandit OS - Phase 4 Progress
 
-**Status**: Active implementation with core kernel/user-mode scaffolding in place; version 0.3 permissions and ByteFS inode foundation added; preemptive user-task launch remains the final milestone
+**Updated**: 2026-10-29
+**Status**: Active implementation with core kernel/user-mode scaffolding in place; scheduler queue lifecycle hardening is complete; preemptive user-task launch remains the final milestone
 
 ## Scope
 
@@ -30,6 +31,8 @@ Phase 4 moves the OS from a kernel-only execution model toward a multi-process r
 - ELF32 validation, section lookup, PT_LOAD processing, and ELF-backed task creation
 - Task registry with PID assignment, state tracking, and task destruction cleanup
 - Scheduler ready queue using round-robin selection and current-task tracking
+- Scheduler queue lifecycle hardening: duplicate enqueue prevention, terminated-task rejection, explicit removal, and retained task exit codes
+- Explicit `task_spawn()` boundary for moving created tasks into the ready queue; scheduler selection now skips terminated entries
 - PIT tick/time accounting and sleep support through the API layer
 - RAM-backed VFS and registry support for console and file metadata workflows
 - Inode-backed ByteFS foundation with parent links, directory semantics, and owner/group metadata

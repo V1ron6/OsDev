@@ -63,6 +63,8 @@ task_t *task_create(const char *name, uint32_t entry_point, uint32_t flags) {
     task->entry_point = entry_point;
     task->cpu_time = 0;
     task->created_time = 0;  /* TODO: get current tick */
+    task->exit_code = 0;
+    task->queued = false;
     task->next = NULL;
 
     if (!task_registry_add(task)) {
@@ -133,6 +135,16 @@ task_t *task_create(const char *name, uint32_t entry_point, uint32_t flags) {
                   task->pid, task->name, entry_point);
     
     return task;
+}
+
+bool task_spawn(task_t *task) {
+    if (task == NULL || task->state == TASK_STATE_DYING ||
+        task->state == TASK_STATE_DEAD) {
+        return false;
+    }
+
+    scheduler_enqueue(task);
+    return task->queued;
 }
 
 void task_set_identity(task_t *task, uint32_t uid, uint32_t gid) {
@@ -226,6 +238,7 @@ void task_destroy(task_t *task) {
     }
     
     serial_printf("[TASK] Destroying task %u: '%s'\n", task->pid, task->name);
+    scheduler_remove(task);
     task_registry_remove(task);
 
     stack_base = task->kernel_stack - (2 * PAGE_SIZE);
@@ -251,7 +264,8 @@ void task_exit(task_t *task, int exit_code) {
     serial_printf("[TASK] Task %u exiting with code %d\n", task->pid, exit_code);
     
     task->state = TASK_STATE_DYING;
-    /* TODO: Cleanup */
+    task->exit_code = exit_code;
+    scheduler_remove(task);
 }
 
 void task_dump(task_t *task) {

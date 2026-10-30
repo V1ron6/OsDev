@@ -86,32 +86,37 @@ static void pit_handler(uint8_t irq) {
     /* Account for CPU time used by current task */
     scheduler_account_time();
     
-    /* Get current and next task */
+}
+
+static uint32_t pit_frame_handler(uint8_t irq, irq_frame_t *frame) {
+    (void)irq;
+
     task_t *current = scheduler_current();
+    if (!current) {
+        return 0;
+    }
+
+    /* Capture the interrupted kernel task before selecting its replacement. */
+    current->context.eax = frame->eax;
+    current->context.ebx = frame->ebx;
+    current->context.ecx = frame->ecx;
+    current->context.edx = frame->edx;
+    current->context.esi = frame->esi;
+    current->context.edi = frame->edi;
+    current->context.ebp = frame->ebp;
+    current->context.esp = (uint32_t)frame + 64;
+    current->context.eip = frame->eip;
+    current->context.eflags = frame->eflags;
+    current->context.cr3 = read_cr3();
+
     task_t *next = scheduler_select_next();
-    
-    if (!next) {
-        /* No task to run (shouldn't happen) */
-        return;
+    if (!next || next == current) {
+        return 0;
     }
-    
-    /* If switching tasks, perform context switch */
-    if (current != next) {
-        /* TODO: Context switch assembly
-         * 
-         * This is where we would:
-         * 1. Save current->context from CPU registers
-         * 2. Load next->context into CPU registers
-         * 3. Update TSS.esp0 for privilege transitions
-         * 4. Set CR3 for page directory switching
-         * 5. IRET to next task
-         *
-         * For now, just mark task switch (actual context switch
-         * requires assembly and interrupt frame manipulation).
-         */
-        serial_printf("[PIT] Task switch: %u -> %u\n", current->pid, next->pid);
-        scheduler_set_current(next);
-    }
+
+    serial_printf("[PIT] Task switch: %u -> %u\n", current->pid, next->pid);
+    scheduler_set_current(next);
+    return (uint32_t)&next->context;
 }
 
 void pit_init(void) {
@@ -119,6 +124,7 @@ void pit_init(void) {
     
     /* Install IRQ0 handler for task switching */
     irq_install_handler(0, pit_handler);
+    irq_install_frame_handler(0, pit_frame_handler);
     
     /* Configure PIT counter 0 for mode 2 (rate generator, periodic) */
     uint8_t control = PIT_CTRL_COUNTER_SELECT_0 |

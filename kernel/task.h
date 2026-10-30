@@ -104,6 +104,8 @@ typedef struct {
     uint32_t umask;            /* Permission mask for new files */
     uint32_t cpu_time;         /* Total CPU time (ticks) */
     uint32_t created_time;     /* Creation time (ticks) */
+    int32_t exit_code;         /* Exit status retained until the task is reaped */
+    bool queued;               /* True while present in the scheduler ready queue */
     char name[32];             /* Task name for debugging */
     struct task *next;         /* Next task in the registry */
 } task_t;
@@ -130,6 +132,9 @@ typedef struct {
  * Note: Task is created but not scheduled yet. Call task_spawn() to start.
  */
 task_t *task_create(const char *name, uint32_t entry_point, uint32_t flags);
+
+/** Place a created task on the scheduler ready queue. */
+bool task_spawn(task_t *task);
 
 /** Set the effective and real identity of a task. */
 void task_set_identity(task_t *task, uint32_t uid, uint32_t gid);

@@ -50,6 +50,7 @@ static void (*irq_stubs[16])(void) = {
  * NULL = no handler installed
  */
 static irq_handler_t irq_handlers[16] = {NULL};
+static irq_frame_handler_t irq_frame_handlers[16] = {NULL};
 
 /* Initialize IRQ system
  *
@@ -104,6 +105,15 @@ void irq_install_handler(uint8_t irq, irq_handler_t handler) {
     }
 }
 
+void irq_install_frame_handler(uint8_t irq, irq_frame_handler_t handler) {
+    if (irq >= 16) {
+        serial_printf("[IRQ] ERROR: Invalid frame IRQ %d (must be 0-15)\n", irq);
+        return;
+    }
+
+    irq_frame_handlers[irq] = handler;
+}
+
 /* Get registered handler */
 irq_handler_t irq_get_handler(uint8_t irq) {
     if (irq >= 16) {
@@ -156,12 +166,12 @@ uint16_t irq_get_status(void) {
  * Called with interrupts disabled (interrupt gate behavior).
  * Should execute quickly to minimize latency.
  */
-void irq_handler(uint8_t irq) {
+uint32_t irq_handler(uint8_t irq, irq_frame_t *frame) {
     /* Validate IRQ number */
     if (irq >= 16) {
         serial_printf("[IRQ] ERROR: Invalid IRQ in handler: %d\n", irq);
         pic_send_eoi(irq);  /* Send EOI anyway to avoid hung IRQ */
-        return;
+        return 0;
     }
     
     /* Call registered handler if one exists */
@@ -179,6 +189,11 @@ void irq_handler(uint8_t irq) {
          */
         serial_printf("[IRQ] Unhandled IRQ %d\n", irq);
     }
+
+    uint32_t next_context = 0;
+    if (irq_frame_handlers[irq] != NULL) {
+        next_context = irq_frame_handlers[irq](irq, frame);
+    }
     
     /* Send End-Of-Interrupt to PIC
      *
@@ -186,4 +201,6 @@ void irq_handler(uint8_t irq) {
      * on the same line will be accepted.
      */
     pic_send_eoi(irq);
+
+    return next_context;
 }
