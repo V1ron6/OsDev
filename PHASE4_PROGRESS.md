@@ -1,7 +1,7 @@
 # ByteBandit OS - Phase 4 Progress
 
-**Updated**: 2026-10-29
-**Status**: Active implementation with core kernel/user-mode scaffolding in place; scheduler queue lifecycle hardening is complete; preemptive user-task launch remains the final milestone
+**Updated**: 2026-11-07
+**Status**: Active implementation with core kernel/user-mode scaffolding in place; scheduler queue lifecycle and timer-switch metadata hardening are in progress; preemptive user-task launch remains the final milestone
 
 ## Scope
 
@@ -33,6 +33,8 @@ Phase 4 moves the OS from a kernel-only execution model toward a multi-process r
 - Scheduler ready queue using round-robin selection and current-task tracking
 - Scheduler queue lifecycle hardening: duplicate enqueue prevention, terminated-task rejection, explicit removal, and retained task exit codes
 - Explicit `task_spawn()` boundary for moving created tasks into the ready queue; scheduler selection now skips terminated entries
+- Timer-switch bookkeeping now updates the TSS ring-0 stack pointer for the selected task
+- Task exit records the exit code through the common task lifecycle path and exposes a guarded reap entry point for post-switch cleanup
 - PIT tick/time accounting and sleep support through the API layer
 - RAM-backed VFS and registry support for console and file metadata workflows
 - Inode-backed ByteFS foundation with parent links, directory semantics, and owner/group metadata
@@ -69,6 +71,25 @@ The largest remaining gap is the transition from a runnable kernel skeleton into
 - Add address-space teardown and frame ownership tracking for task exit
 - Add richer persistent block storage and filesystem directory indexing while preserving the inode API contract
 
+## Latest Development Changes
+
+The scheduler transition path was extended in three related areas:
+
+- `arch/x86/pit.c` updates the TSS `esp0` whenever the timer selects a new
+  task, keeping future ring-3-to-ring-0 interrupts on the selected task's
+  kernel stack.
+- `kernel/syscall.c` routes `exit()` through `task_exit()` so the task state
+  and exit code use the same lifecycle bookkeeping as other termination paths.
+- `kernel/task.c` adds `task_reap()` as a guarded post-switch cleanup boundary;
+  it refuses to reclaim the current task or any task that has not entered the
+  dying state.
+
+The IRQ context-switch assembly retains the selected task's target stack
+pointer while restoring registers and constructing the return frame. Full
+post-switch reclamation and a non-halting syscall exit handoff remain open
+because the current syscall entry path still needs a scheduler-aware return
+frame transition.
+
 ## Risk Areas
 
 The current work is stable enough to build, but the final Phase 4 milestone is still blocked by privilege transition correctness. The critical technical risk is not the build graph; it is the correctness of ring-3 context switching, page-directory restoration, and exception recovery. These are the points that determine whether a user ELF task can actually run and survive beyond a single entry.
@@ -82,3 +103,12 @@ make clean && make
 ```
 
 This preserves the production build flow defined in [Makefile](Makefile) and generates the bootable image in `output/`.
+
+Validation attempted for the latest changes on 2026-11-07:
+
+```text
+make clean && make
+```
+
+The command was blocked before compilation because `nasm` is not installed in
+the current environment (`make: nasm: No such file or directory`).

@@ -1,6 +1,6 @@
 # ByteBandit OS Development Progress
 
-**Updated**: 2026-10-11
+**Updated**: 2026-11-07
 **Current ISO**: `output/bytebandit-v035.iso`
 **Current phase**: Bootable kernel foundation with persistent storage and operator shell
 
@@ -83,6 +83,23 @@ parameters, signedness checks, and the missing GNU-stack assembler note.
 - Registry permissions are root-only rather than per-key ownership metadata.
 - No GUI or graphics subsystem exists yet.
 
+## Latest Development Changes
+
+The process-runtime work now includes:
+
+- Updating the TSS kernel stack pointer on every timer-driven task selection,
+  so later user-mode interrupts can enter the selected task's kernel stack.
+- Routing `syscall_exit()` through `task_exit()` to preserve termination state
+  and exit codes consistently.
+- Adding a guarded `task_reap()` lifecycle boundary for reclaiming a dying task
+  only after it is no longer the current task.
+- Preserving the timer switch target stack pointer while the IRQ assembly path
+  restores registers and builds the interrupt-return frame.
+
+These changes do not yet complete safe post-exit scheduling. The syscall entry
+path still requires a scheduler-aware return-frame handoff before `bb_exit()`
+can resume another task without halting.
+
 ## Next course of action
 
 1. **Stabilize process runtime**
@@ -125,6 +142,9 @@ For a fast reboot without rebuilding:
 ```bash
 ./run.sh --no-build
 ```
+
+The latest `make clean && make` validation could not start compilation in the
+current environment because the required `nasm` executable is unavailable.
 
 To intentionally reset persistent storage:
 
