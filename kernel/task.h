@@ -177,6 +177,9 @@ void task_destroy(task_t *task);
  */
 void task_exit(task_t *task, int exit_code);
 
+/** Reclaim a task that has already been switched away from. */
+void task_reap(task_t *task);
+
 /* =========================================================================
  * DEBUGGING
  * ========================================================================= */

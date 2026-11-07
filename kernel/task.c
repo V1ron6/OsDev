@@ -268,6 +268,16 @@ void task_exit(task_t *task, int exit_code) {
     scheduler_remove(task);
 }
 
+void task_reap(task_t *task) {
+    if (task == NULL || task == scheduler_current() ||
+        task->state != TASK_STATE_DYING) {
+        return;
+    }
+
+    task->state = TASK_STATE_DEAD;
+    task_destroy(task);
+}
+
 void task_dump(task_t *task) {
     if (task == NULL) {
         serial_puts("[TASK] NULL task\n");

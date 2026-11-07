@@ -189,18 +189,21 @@ uint32_t syscall_handler(uint32_t int_no, uint32_t syscall_no,
 void syscall_exit(int32_t exit_code) {
     serial_printf("[SYSCALL] exit(%d) - Process terminating\n", exit_code);
     
-    /* Mark current task as dying */
     task_t *current = scheduler_current();
-    if (current) {
-        current->state = TASK_STATE_DYING;
+    if (current == NULL) {
+        serial_puts("[SYSCALL] exit() without a current task\n");
+        return;
     }
-    
-    /* Halt the system (in future, will switch to next task)
-     *
-     * TODO: When scheduler is implemented, switch to next task
-     * instead of halting.
+
+    task_exit(current, exit_code);
+
+    /*
+     * The syscall return frame still belongs to the exiting task.  Do not
+     * return through it; the next timer interrupt will select another task
+     * and the IRQ switch path will discard this frame.
      */
-    while (1) {
+    disable_interrupts();
+    for (;;) {
         halt();
     }
 }

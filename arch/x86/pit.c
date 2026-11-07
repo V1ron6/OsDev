@@ -24,6 +24,7 @@
 #include "kernel/scheduler.h"
 #include "kernel/task.h"
 #include "kernel/context.h"
+#include "arch/x86/tss.h"
 #include "serial.h"
 #include "x86.h"
 
@@ -116,6 +117,7 @@ static uint32_t pit_frame_handler(uint8_t irq, irq_frame_t *frame) {
 
     serial_printf("[PIT] Task switch: %u -> %u\n", current->pid, next->pid);
     scheduler_set_current(next);
+    tss_set_kernel_stack(next->kernel_stack, 0x10);
     return (uint32_t)&next->context;
 }
 

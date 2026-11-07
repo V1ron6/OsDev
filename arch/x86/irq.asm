@@ -92,7 +92,7 @@ _irq_common:
     mov [ebp], eax
     mov [ebp + 4], edx
     mov [ebp + 8], ecx
-    mov [esp + 64], ebp       ; Keep the target ESP in the unused kernel slot.
+    mov [esp + 64], ebp       ; Preserve target ESP across register restore.
     mov edx, [edi + 20]
     mov [esp + 68], edx       ; Keep target EDI until the context pointer is free.
 
