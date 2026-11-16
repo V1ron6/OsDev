@@ -17,6 +17,7 @@
 
 #include "types.h"
 #include "bb_syscall.h"
+#include "kernel/task.h"
 
 /* Syscall numbers (matching Linux i386 ABI for reference) */
 #define SYS_EXIT        1   /* Terminate process */
@@ -69,6 +70,12 @@
 /* Initial syscalls we implement */
 #define SYSCALL_MAX 128
 
+/** Spawn a user ELF image and return its PID as a process handle. */
+int32_t syscall_spawn(const char *path, const char *const *argv);
+
+/** Poll a child process and reap it after termination. */
+int32_t syscall_wait(bb_handle_t process, int32_t *status);
+
 /**
  * Initialize syscall system.
  *
@@ -108,6 +115,9 @@ uint32_t syscall_handler(uint32_t int_no, uint32_t syscall_no,
  * @return Never returns (process terminates)
  */
 void syscall_exit(int32_t exit_code);
+
+/** Return a replacement context when the current syscall task is exiting. */
+cpu_context_t *syscall_select_exit_context(void);
 
 /**
  * SYS_WRITE - Write to file descriptor.

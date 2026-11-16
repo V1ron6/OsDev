@@ -27,6 +27,7 @@ contracts stable.
 | `BB_STATUS_NOSYS` | `-3` | Service is not implemented |
 | `BB_STATUS_PERM` | `-4` | Permission denied |
 | `BB_STATUS_AGAIN` | `-5` | Nonblocking operation has no data yet |
+| `BB_STATUS_NOMEM` | `-6` | Kernel memory or task resources are unavailable |
 
 ## Resource Model
 
@@ -87,8 +88,16 @@ The version `0.3` user wrappers expose `bb_read`, `bb_write`, `bb_close`,
 `bb_open`, `bb_getpid`, `bb_getuid`, `bb_setuid`, `bb_getgid`, `bb_setgid`,
 `bb_uptime_ticks`, `bb_sleep_ms`, `bb_get_system_info`, `bb_registry_query`,
 `bb_registry_set`, `bb_list_files`, `bb_chmod`, `bb_spawn`, `bb_wait`, and
-`bb_exit`. File and process creation calls remain `BB_STATUS_NOSYS` until
-those subsystems land. Application guidance and a complete example are in
+`bb_exit`. `bb_open` and `bb_close` operate on ByteFS descriptors.
+`bb_spawn(path, argv)` now loads a ByteBandit ELF image from the
+current ByteFS namespace, creates an isolated user task, inherits the caller's
+identity, queues it for execution, and returns its PID as a `bb_handle_t`.
+The `argv` pointer is reserved for argument-vector support and is currently
+accepted but not copied. `bb_wait(process, status)` is a nonblocking child
+status poll: it returns `BB_STATUS_AGAIN` while the child is running, then
+writes the exit code, reaps the child, and returns `BB_STATUS_OK`. It returns
+`BB_STATUS_NOT_FOUND` for a non-child handle. Blocking wait and notification
+semantics remain future work. Application guidance and a complete example are in
 [CLI_APP_DEVELOPMENT.md](CLI_APP_DEVELOPMENT.md).
 
 ## Serial Command Console
@@ -118,6 +127,7 @@ Run QEMU with `-serial stdio`, then type commands at the `bb>` prompt.
 | `env` / `registry` | Print registry-backed system values |
 | `mount` | Print mounted filesystem view |
 | `echo TEXT` | Write text to both console devices |
+| `exec PATH` | Load and queue a ByteBandit ELF image |
 | `clear` | Clear the VGA text display |
 | `sync` | Commit the current filesystem state to the persistent volume |
 | `sleep MS` | Pause the console task for milliseconds |

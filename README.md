@@ -10,10 +10,14 @@ ByteBandit OS is a modular, educational x86 operating system kernel built from s
 
 ### Prerequisites
 
-Linux system (Ubuntu 24.04 tested) with:
+Debian or Ubuntu Linux (Ubuntu 24.04 tested). Install all required packages
+and the project's `i686-elf-*` compatibility wrappers with:
 ```bash
-sudo apt install -y nasm gcc build-essential gcc-multilib qemu-system-x86
+./setup.sh
 ```
+
+The script is safe to run repeatedly. It installs only missing packages and
+does not replace existing toolchain wrappers. Run it from the project root.
 
 The project provides cross-compiler wrappers for i686-elf toolchain.
 
@@ -239,7 +243,7 @@ outb(0x3F8, 'A');  // Write character to COM1
 ### Headless Command Console
 
 Boot with `-serial stdio` and use the `bb>` prompt. The initial commands are
-`help`, `version`, `info`, `tasks`, `mem`, `echo TEXT`, and `clear`. See
+`help`, `version`, `info`, `tasks`, `mem`, `echo TEXT`, `exec PATH`, and `clear`. See
 [BYTEBANDIT_API.md](BYTEBANDIT_API.md) for the API contract and command details.
 Application developers should also read
 [CLI_APP_DEVELOPMENT.md](CLI_APP_DEVELOPMENT.md).

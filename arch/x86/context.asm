@@ -6,6 +6,7 @@
 ;   0: EAX, 4: EBX, 8: ECX, 12: EDX
 ;   16: ESI, 20: EDI, 24: ESP, 28: EBP
 ;   32: EIP, 36: EFLAGS, 40: CR3
+;   44: CS, 48: user ESP, 52: user SS
 
 bits 32
 section .text
@@ -19,10 +20,9 @@ global _context_restore_asm
 
 ; void context_switch_asm(cpu_context_t *from, cpu_context_t *to)
 ;
-; The interrupt-frame switch will be added when PIT preemption is wired.
+; The interrupt-frame switch is performed by arch/x86/irq.asm.
 context_switch_asm:
 _context_switch_asm:
-    ; The interrupt-frame switch will be added when PIT preemption is wired.
     ret
 
 ; void context_save_asm(cpu_context_t *ctx)

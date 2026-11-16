@@ -61,6 +61,9 @@ typedef struct task {
     uint32_t eip;      /* Instruction pointer (next to execute) */
     uint32_t eflags;   /* CPU flags (IF, CF, ZF, etc.) */
     uint32_t cr3;      /* Page directory (if multitasking) */
+    uint32_t cs;       /* Code segment for interrupt return */
+    uint32_t useresp;  /* User stack pointer for ring-3 return */
+    uint32_t userss;   /* User stack segment for ring-3 return */
 } cpu_context_t;
 
 /* =========================================================================
@@ -179,6 +182,9 @@ void task_exit(task_t *task, int exit_code);
 
 /** Reclaim a task that has already been switched away from. */
 void task_reap(task_t *task);
+
+/** Reclaim all terminated tasks except the currently executing task. */
+void task_reap_deferred(void);
 
 /* =========================================================================
  * DEBUGGING

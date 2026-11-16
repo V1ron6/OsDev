@@ -45,6 +45,11 @@ void context_init_for_task(task_t *task, uint32_t entry, uint32_t stack_top) {
     
     /* Set flags: interrupts enabled (IF bit = 1), carry clear */
     task->context.eflags = 0x00000202;  /* IF=1, reserved bit 1 = 1 */
+    task->context.cs = (task->flags & TASK_FLAG_USER_MODE) ? 0x1B : 0x08;
+    if (task->flags & TASK_FLAG_USER_MODE) {
+        task->context.useresp = 0xC0000000;
+        task->context.userss = 0x23;
+    }
     
     /* CR3 will be set later for user tasks (per-process page directories) */
     task->context.cr3 = 0;  /* Use current kernel page directory */

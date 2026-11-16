@@ -22,8 +22,8 @@ host libc or a desktop operating system.
 |---|---|---|
 | `bb_read(fd, buffer, length)` | Nonblocking standard input | Bytes read or `BB_STATUS_AGAIN` |
 | `bb_write(fd, buffer, length)` | Write console bytes | Bytes written or negative status |
-| `bb_open(path, flags, mode)` | Open a filesystem object | `BB_STATUS_NOSYS` currently |
-| `bb_close(fd)` | Close a descriptor | `BB_STATUS_NOSYS` currently |
+| `bb_open(path, flags, mode)` | Open a filesystem object | Returns a ByteFS descriptor |
+| `bb_close(fd)` | Close a descriptor | Closes the descriptor |
 | `bb_getpid()` | Get current process ID | PID |
 | `bb_uptime_ticks()` | Read 100 Hz timer ticks | Tick count |
 | `bb_sleep_ms(milliseconds)` | Wait using kernel timer | Status code |
@@ -31,8 +31,8 @@ host libc or a desktop operating system.
 | `bb_registry_query(path, buffer, length)` | Query a registry value | Value length or negative status |
 | `bb_registry_set(path, value)` | Set a registry value | `BB_STATUS_OK` or negative status |
 | `bb_list_files()` | List the current VFS entries | `BB_STATUS_OK` or negative status |
-| `bb_spawn(path, argv)` | Start a process | `BB_STATUS_NOSYS` currently |
-| `bb_wait(process, &status)` | Wait for a process handle | `BB_STATUS_NOSYS` currently |
+| `bb_spawn(path, argv)` | Start a process | Returns the child PID as a handle |
+| `bb_wait(process, &status)` | Poll and reap a child | `BB_STATUS_AGAIN` until the child exits |
 | `bb_exit(status)` | Terminate the process | Does not return |
 
 The first built-in file paths are `/etc/motd` and `/etc/system.conf`. Files can

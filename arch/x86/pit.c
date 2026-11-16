@@ -92,6 +92,7 @@ static void pit_handler(uint8_t irq) {
 static uint32_t pit_frame_handler(uint8_t irq, irq_frame_t *frame) {
     (void)irq;
 
+    task_reap_deferred();
     task_t *current = scheduler_current();
     if (!current) {
         return 0;
@@ -105,10 +106,15 @@ static uint32_t pit_frame_handler(uint8_t irq, irq_frame_t *frame) {
     current->context.esi = frame->esi;
     current->context.edi = frame->edi;
     current->context.ebp = frame->ebp;
-    current->context.esp = (uint32_t)frame + 64;
     current->context.eip = frame->eip;
     current->context.eflags = frame->eflags;
     current->context.cr3 = read_cr3();
+    current->context.cs = frame->cs;
+    current->context.useresp = frame->useresp;
+    current->context.userss = frame->userss;
+    current->context.esp = (frame->cs & 0x3) ?
+                           (uint32_t)frame + 72 :
+                           (uint32_t)frame + 64;
 
     task_t *next = scheduler_select_next();
     if (!next || next == current) {

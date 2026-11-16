@@ -83,6 +83,7 @@ task_t *task_create(const char *name, uint32_t entry_point, uint32_t flags) {
     memset(&task->context, 0, sizeof(cpu_context_t));
     task->context.eip = entry_point;
     task->context.eflags = 0x00000202;  /* IF (interrupts enabled) + reserved bit */
+    task->context.cs = (flags & TASK_FLAG_USER_MODE) ? 0x1B : 0x08;
     
     /* Allocate kernel stack (2 pages = 8KB for now) */
     uint32_t stack_frame1 = pmm_alloc_frame();
@@ -124,6 +125,8 @@ task_t *task_create(const char *name, uint32_t entry_point, uint32_t flags) {
             return NULL;
         }
         task->kernel_stack = stack_virt + (2 * PAGE_SIZE);
+        task->context.useresp = 0xC0000000;
+        task->context.userss = 0x23;
     } else {
         task->page_dir = paging_get_page_dir();
         task->page_dir_virtual = (page_directory_t *)task->page_dir;
@@ -244,6 +247,9 @@ void task_destroy(task_t *task) {
     stack_base = task->kernel_stack - (2 * PAGE_SIZE);
     frame1 = paging_get_mapping(stack_base);
     frame2 = paging_get_mapping(stack_base + PAGE_SIZE);
+    if (task->flags & TASK_FLAG_USER_MODE) {
+        paging_release_user_directory(task->page_dir_virtual, frame1, frame2);
+    }
     paging_unmap_page(stack_base);
     paging_unmap_page(stack_base + PAGE_SIZE);
     if (frame1 != 0) {
@@ -276,6 +282,17 @@ void task_reap(task_t *task) {
 
     task->state = TASK_STATE_DEAD;
     task_destroy(task);
+}
+
+void task_reap_deferred(void) {
+    for (uint32_t i = 0; i < TASK_MAX_COUNT; i++) {
+        task_t *task = task_registry[i];
+        if (task != NULL && task != scheduler_current() &&
+            task->state == TASK_STATE_DYING &&
+            (task->ppid == 0 || task_find(task->ppid) == NULL)) {
+            task_reap(task);
+        }
+    }
 }
 
 void task_dump(task_t *task) {

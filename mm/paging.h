@@ -308,6 +308,11 @@ bool paging_map_page_in_directory(page_directory_t *directory,
                                    uint32_t vaddr, uint32_t paddr,
                                    uint32_t flags);
 
+/** Release user mappings while preserving frames shared with the kernel stack. */
+void paging_release_user_directory(page_directory_t *directory,
+                                   uint32_t shared_frame1,
+                                   uint32_t shared_frame2);
+
 /**
  * paging_load_page_dir() - Load a page directory into CR3
  *

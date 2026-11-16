@@ -11,6 +11,7 @@
 
 ; Import the C dispatcher function
 extern syscall_handler
+extern syscall_select_exit_context
 
 ; Export entry point for IDT
 global syscall_entry
@@ -60,9 +61,18 @@ syscall_entry:
     ; EAX now contains return value
     ; Discard arguments from stack
     add esp, 32         ; 8 args × 4 bytes
+
+    ; Preserve the syscall result while checking whether exit() terminated
+    ; the current task.  A non-zero context switches without returning to it.
+    push eax
+    call syscall_select_exit_context
+    add esp, 4
+    test eax, eax
+    jnz .switch_task
     
     ; Restore user registers
     ; Note: EAX not restored (contains return value)
+    pop eax
     pop ebx
     pop ecx
     pop edx
@@ -72,4 +82,50 @@ syscall_entry:
     
     ; Return to user mode via IRET
     ; IRET pops EIP, CS, EFLAGS and returns to user code
+    iret
+
+.switch_task:
+    mov edi, eax
+    mov ecx, [edi + 40]       ; Load the next address space first.
+    test ecx, ecx
+    jz .keep_cr3
+    mov cr3, ecx
+.keep_cr3:
+    mov eax, [edi + 32]       ; EIP
+    mov ecx, [edi + 36]       ; EFLAGS
+    mov edx, [edi + 44]       ; CS
+    test dl, 3
+    jz .build_kernel_frame
+
+    mov ebp, [edi + 24]       ; Next task's saved kernel ESP.
+    sub ebp, 20
+    mov [ebp], eax
+    mov [ebp + 4], edx
+    mov [ebp + 8], ecx
+    mov eax, [edi + 48]
+    mov [ebp + 12], eax
+    mov eax, [edi + 52]
+    mov [ebp + 16], eax
+    jmp .frame_ready
+
+.build_kernel_frame:
+    mov ebp, [edi + 24]
+    sub ebp, 12
+    mov [ebp], eax
+    mov [ebp + 4], edx
+    mov [ebp + 8], ecx
+
+.frame_ready:
+    mov [esp + 24], ebp       ; Preserve target ESP across register restore.
+    mov edx, [edi + 20]
+    mov [esp + 28], edx       ; Preserve target EDI until the context is free.
+
+    mov eax, [edi + 0]
+    mov ebx, [edi + 4]
+    mov ecx, [edi + 8]
+    mov edx, [edi + 12]
+    mov ebp, [edi + 28]
+    mov esi, [edi + 16]
+    mov edi, [esp + 28]
+    mov esp, [esp + 24]
     iret

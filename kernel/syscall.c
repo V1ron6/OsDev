@@ -12,6 +12,7 @@
 #include "kernel/task.h"
 #include "kernel/scheduler.h"
 #include "arch/x86/pit.h"
+#include "arch/x86/tss.h"
 #include "mm/heap.h"
 #include "mm/paging.h"
 #include "mm/constants.h"
@@ -19,6 +20,8 @@
 #include "fs/vfs.h"
 #include "fs/registry.h"
 #include <string.h>
+
+#define SYSCALL_EXEC_IMAGE_MAX (64 * 1024)
 
 static bool syscall_user_buffer_valid(const void *buffer, uint32_t count) {
     uint32_t start = (uint32_t)buffer;
@@ -49,6 +52,7 @@ static bool syscall_copy_user_string(const char *user_string, char *kernel_strin
     if (!syscall_user_buffer_valid(user_string, capacity)) {
         return false;
     }
+
     for (uint32_t i = 0; i < capacity; i++) {
         kernel_string[i] = user_string[i];
         if (kernel_string[i] == '\0') {
@@ -56,6 +60,91 @@ static bool syscall_copy_user_string(const char *user_string, char *kernel_strin
         }
     }
     return false;
+}
+
+int32_t syscall_spawn(const char *user_path,
+                      const char *const *user_argv) {
+    char kernel_path[64];
+    uint8_t *image;
+    int32_t fd;
+    int32_t amount;
+    uint32_t image_size = 0;
+    task_t *parent = scheduler_current();
+    task_t *child;
+
+    (void)user_argv;
+    if (!syscall_copy_user_string(user_path, kernel_path,
+                                  sizeof(kernel_path)) ||
+        parent == NULL) {
+        return BB_STATUS_INVALID;
+    }
+
+    fd = vfs_open(kernel_path, BB_O_RDONLY);
+    if (fd < 0) {
+        return fd;
+    }
+
+    image = (uint8_t *)kmalloc(SYSCALL_EXEC_IMAGE_MAX);
+    if (image == NULL) {
+        vfs_close(fd);
+        return BB_STATUS_NOMEM;
+    }
+
+    while (image_size < SYSCALL_EXEC_IMAGE_MAX) {
+        amount = vfs_read(fd, image + image_size,
+                          SYSCALL_EXEC_IMAGE_MAX - image_size);
+        if (amount < 0) {
+            vfs_close(fd);
+            return amount;
+        }
+        if (amount == 0) {
+            break;
+        }
+        image_size += (uint32_t)amount;
+    }
+    vfs_close(fd);
+
+    if (image_size == SYSCALL_EXEC_IMAGE_MAX) {
+        return BB_STATUS_INVALID;
+    }
+
+    child = task_create_from_elf(kernel_path, image, image_size);
+    if (child == NULL) {
+        return BB_STATUS_INVALID;
+    }
+
+    child->ppid = parent->pid;
+    task_set_identity(child, parent->euid, parent->egid);
+    if (!task_spawn(child)) {
+        task_destroy(child);
+        return BB_STATUS_NOMEM;
+    }
+
+    return (int32_t)child->pid;
+}
+
+int32_t syscall_wait(bb_handle_t process, int32_t *status) {
+    task_t *parent = scheduler_current();
+    task_t *child;
+    int32_t exit_code;
+
+    if (parent == NULL ||
+        !syscall_user_buffer_valid(status, sizeof(*status))) {
+        return BB_STATUS_INVALID;
+    }
+
+    child = task_find(process);
+    if (child == NULL || child->ppid != parent->pid) {
+        return BB_STATUS_NOT_FOUND;
+    }
+    if (child->state != TASK_STATE_DYING) {
+        return BB_STATUS_AGAIN;
+    }
+
+    exit_code = child->exit_code;
+    memcpy(status, &exit_code, sizeof(exit_code));
+    task_reap(child);
+    return BB_STATUS_OK;
 }
 
 void syscall_init(void) {
@@ -163,6 +252,16 @@ uint32_t syscall_handler(uint32_t int_no, uint32_t syscall_no,
             result = (uint32_t)syscall_get_system_info((bb_system_info_t *)arg0);
             break;
 
+        case BB_SYS_SPAWN:
+            result = (uint32_t)syscall_spawn((const char *)arg0,
+                                             (const char *const *)arg1);
+            break;
+
+        case BB_SYS_WAIT:
+            result = (uint32_t)syscall_wait((bb_handle_t)arg0,
+                                            (int32_t *)arg1);
+            break;
+
         case BB_SYS_REG_QUERY:
             result = (uint32_t)syscall_registry_query((const char *)arg0,
                                                        (char *)arg1, arg2);
@@ -196,16 +295,28 @@ void syscall_exit(int32_t exit_code) {
     }
 
     task_exit(current, exit_code);
+}
 
-    /*
-     * The syscall return frame still belongs to the exiting task.  Do not
-     * return through it; the next timer interrupt will select another task
-     * and the IRQ switch path will discard this frame.
-     */
-    disable_interrupts();
-    for (;;) {
-        halt();
+cpu_context_t *syscall_select_exit_context(void) {
+    task_t *current = scheduler_current();
+    task_t *next;
+
+    if (current == NULL || current->state != TASK_STATE_DYING) {
+        return NULL;
     }
+
+    next = scheduler_select_next();
+    if (next == current || next == NULL) {
+        next = scheduler_get_idle_task();
+    }
+    if (next == NULL || next == current) {
+        serial_puts("[SYSCALL] exit(): no replacement task available\n");
+        return NULL;
+    }
+
+    scheduler_set_current(next);
+    tss_set_kernel_stack(next->kernel_stack, 0x10);
+    return &next->context;
 }
 
 int32_t syscall_write(int32_t fd, const void *buf, uint32_t count) {

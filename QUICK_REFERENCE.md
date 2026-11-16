@@ -225,7 +225,7 @@ Before committing changes:
 - [ARCHITECTURE.md](ARCHITECTURE.md) - Design & decisions
 - [DEBUGGING.md](DEBUGGING.md) - Boot issue diagnosis
 - [README.md](README.md) - Getting started
-- [PHASE1_REPORT.md](PHASE1_REPORT.md) - Completion summary
+- [PHASE4_PROGRESS.md](PHASE4_PROGRESS.md) - Active process-runtime progress
 
 **External Resources**
 - Intel IA-32 Manual: https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html
@@ -272,4 +272,4 @@ au FileType asm set commentstring=;%s
 
 **Keep this as a handy reference while developing!**
 
-Last updated: Phase 1 completion
+Last updated: Phase 4 process-runtime development

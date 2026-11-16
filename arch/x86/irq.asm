@@ -86,12 +86,30 @@ _irq_common:
   .keep_cr3:
     mov eax, [edi + 32]       ; EIP
     mov ecx, [edi + 36]       ; EFLAGS
-    mov edx, [esp + 56]       ; Current CS (kernel tasks use the same CS).
-    mov ebp, [edi + 24]       ; Next task's saved ESP.
+    mov edx, [edi + 44]       ; CS
+    test dl, 3
+    jz .build_kernel_frame
+
+    ; A ring-3 return needs EIP, CS, EFLAGS, user ESP, and user SS.
+    mov ebp, [edi + 24]       ; Next task's saved kernel ESP.
+    sub ebp, 20
+    mov [ebp], eax
+    mov [ebp + 4], edx
+    mov [ebp + 8], ecx
+    mov eax, [edi + 48]
+    mov [ebp + 12], eax
+    mov eax, [edi + 52]
+    mov [ebp + 16], eax
+    jmp .frame_ready
+
+  .build_kernel_frame:
+    mov ebp, [edi + 24]       ; Next task's saved kernel ESP.
     sub ebp, 12
     mov [ebp], eax
     mov [ebp + 4], edx
     mov [ebp + 8], ecx
+
+  .frame_ready:
     mov [esp + 64], ebp       ; Preserve target ESP across register restore.
     mov edx, [edi + 20]
     mov [esp + 68], edx       ; Keep target EDI until the context pointer is free.

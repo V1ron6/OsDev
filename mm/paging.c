@@ -101,6 +101,16 @@ static page_table_t *_get_page_table(uint32_t dir_idx) {
     return (page_table_t *)(PDE_GET_TABLE(*pde));
 }
 
+static page_table_t *_get_page_table_in_directory(page_directory_t *directory,
+                                                  uint32_t dir_idx) {
+    if (directory == NULL || dir_idx >= 1024 ||
+        !(directory->entries[dir_idx].value & PAGE_PRESENT)) {
+        return NULL;
+    }
+
+    return (page_table_t *)PDE_GET_TABLE(directory->entries[dir_idx]);
+}
+
 static void *_alloc_aligned_page(void) {
     uintptr_t raw = (uintptr_t)kmalloc(PAGE_SIZE * 2);
     uintptr_t aligned;
@@ -347,7 +357,8 @@ uint32_t paging_get_mapping(uint32_t vaddr) {
 uint32_t paging_get_mapping_flags(uint32_t vaddr) {
     uint32_t dir_idx = VADDR_DIR_IDX(vaddr);
     uint32_t tbl_idx = VADDR_TABLE_IDX(vaddr);
-    page_table_t *table = _get_page_table(dir_idx);
+    page_directory_t *directory = (page_directory_t *)read_cr3();
+    page_table_t *table = _get_page_table_in_directory(directory, dir_idx);
 
     if (table == NULL || !(table->entries[tbl_idx].value & PAGE_PRESENT)) {
         return 0;
@@ -433,6 +444,39 @@ uint32_t paging_create_user_directory(page_directory_t **directory) {
 
     *directory = user_directory;
     return physical;
+}
+
+void paging_release_user_directory(page_directory_t *directory,
+                                   uint32_t shared_frame1,
+                                   uint32_t shared_frame2) {
+    if (directory == NULL || directory == &kernel_page_dir) {
+        return;
+    }
+
+    for (uint32_t dir_idx = 0; dir_idx < VADDR_DIR_IDX(0xC0000000);
+         dir_idx++) {
+        page_dir_entry_t *pde = &directory->entries[dir_idx];
+        if (!(pde->value & PAGE_PRESENT)) {
+            continue;
+        }
+
+        page_table_t *table = (page_table_t *)PDE_GET_TABLE(*pde);
+        for (uint32_t table_idx = 0; table_idx < 1024; table_idx++) {
+            page_tbl_entry_t *pte = &table->entries[table_idx];
+            uint32_t frame;
+
+            if (!(pte->value & PAGE_PRESENT) ||
+                !(pte->value & PAGE_USER)) {
+                continue;
+            }
+
+            frame = PTE_GET_FRAME(*pte);
+            pte->value = 0;
+            if (frame != shared_frame1 && frame != shared_frame2) {
+                pmm_free_frame(frame);
+            }
+        }
+    }
 }
 
 void paging_load_page_dir(uint32_t pdir_addr) {

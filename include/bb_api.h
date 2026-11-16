@@ -13,6 +13,7 @@
 #define BB_STATUS_NOSYS    -3
 #define BB_STATUS_PERM     -4
 #define BB_STATUS_AGAIN    -5
+#define BB_STATUS_NOMEM    -6
 
 #define BB_STDIN_FD   0
 #define BB_CONSOLE_FD 1

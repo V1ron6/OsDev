@@ -34,6 +34,18 @@ Phase 4 moves the OS from a kernel-only execution model toward a multi-process r
 - Scheduler queue lifecycle hardening: duplicate enqueue prevention, terminated-task rejection, explicit removal, and retained task exit codes
 - Explicit `task_spawn()` boundary for moving created tasks into the ready queue; scheduler selection now skips terminated entries
 - Timer-switch bookkeeping now updates the TSS ring-0 stack pointer for the selected task
+- Timer context switching now preserves privilege-aware CS, user ESP, and user
+  SS metadata and builds ring-0 or ring-3 interrupt return frames accordingly
+- Syscall task exit now selects a replacement task and transfers through a
+  privilege-aware return frame instead of halting indefinitely
+- Deferred reaping now removes terminated tasks after a safe context switch and
+  releases their user-owned physical mappings
+- The operator console can now load and queue a ByteFS ELF image with
+  `exec PATH`; user buffer checks use the active address space
+- `bb_spawn(path, argv)` now loads and queues an ELF child and returns its PID;
+  `argv` is accepted but argument copying remains future work
+- `bb_wait(process, status)` now polls child state and reaps completed children;
+  it returns `BB_STATUS_AGAIN` while the child is still running
 - Task exit records the exit code through the common task lifecycle path and exposes a guarded reap entry point for post-switch cleanup
 - PIT tick/time accounting and sleep support through the API layer
 - RAM-backed VFS and registry support for console and file metadata workflows

@@ -85,6 +85,25 @@ parameters, signedness checks, and the missing GNU-stack assembler note.
 
 ## Latest Development Changes
 
+The timer context-switch path now preserves privilege-transition state:
+
+- Task contexts retain code-segment, user-stack, and user-stack-segment values.
+- Timer interrupts save the correct frame boundary for kernel and user
+  interruptions.
+- IRQ return logic constructs the appropriate three-word ring-0 or five-word
+  ring-3 `IRET` frame for the selected task.
+- `syscall_exit()` now selects the next runnable task and transfers directly
+  through the syscall entry path instead of halting the CPU.
+- Terminated tasks are now reaped on a later timer interrupt, and user-owned
+  mappings are released without reclaiming shared kernel stack frames.
+- Added `exec PATH` to load a ByteFS ELF image into an isolated user address
+  space and enqueue it for execution.
+- User syscall buffer validation now follows the active page directory.
+- Implemented `bb_spawn()` for ByteFS ELF images; child tasks inherit the
+  caller identity and return their PID as the process handle.
+- Implemented nonblocking `bb_wait()` polling and child reaping; blocking wait
+  and notification semantics remain future work.
+
 The process-runtime work now includes:
 
 - Updating the TSS kernel stack pointer on every timer-driven task selection,

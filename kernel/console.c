@@ -13,6 +13,7 @@
 #include <string.h>
 
 #define CONSOLE_LINE_LENGTH 128
+#define CONSOLE_EXEC_IMAGE_MAX (64 * 1024)
 
 static char console_line[CONSOLE_LINE_LENGTH];
 static uint32_t console_length;
@@ -100,6 +101,65 @@ static void console_copy_file(const char *source, const char *destination) {
     }
     vfs_close(source_fd);
     vfs_close(destination_fd);
+}
+
+static void console_exec(const char *path) {
+    uint8_t *image;
+    int32_t fd;
+    int32_t amount;
+    uint32_t image_size = 0;
+    task_t *task;
+
+    if (path == NULL || *path == '\0') {
+        console_puts("exec: usage exec PATH\n");
+        return;
+    }
+
+    fd = vfs_open(path, BB_O_RDONLY);
+    if (fd < 0) {
+        console_puts("exec: file not found\n");
+        return;
+    }
+
+    image = (uint8_t *)kmalloc(CONSOLE_EXEC_IMAGE_MAX);
+    if (image == NULL) {
+        vfs_close(fd);
+        console_puts("exec: insufficient kernel memory\n");
+        return;
+    }
+
+    while (image_size < CONSOLE_EXEC_IMAGE_MAX) {
+        amount = vfs_read(fd, image + image_size,
+                          CONSOLE_EXEC_IMAGE_MAX - image_size);
+        if (amount < 0) {
+            vfs_close(fd);
+            console_puts("exec: read failed\n");
+            return;
+        }
+        if (amount == 0) {
+            break;
+        }
+        image_size += (uint32_t)amount;
+    }
+    vfs_close(fd);
+
+    if (image_size == CONSOLE_EXEC_IMAGE_MAX) {
+        console_puts("exec: executable is too large\n");
+        return;
+    }
+
+    task = task_create_from_elf(path, image, image_size);
+    if (task == NULL || !task_spawn(task)) {
+        if (task != NULL) {
+            task_destroy(task);
+        }
+        console_puts("exec: invalid or unschedulable ELF\n");
+        return;
+    }
+
+    serial_printf("[CONSOLE] queued user task %u (%s)\n",
+                  task->pid, task->name);
+    vga_printf("started task %u\n", task->pid);
 }
 
 static void console_uname(void) {
@@ -227,7 +287,7 @@ static void console_execute(void) {
     }
 
     if (strcmp(console_line, "help") == 0) {
-        console_puts("commands: cat clear cp echo env files free help id ls mkdir\n");
+        console_puts("commands: cat clear cp echo env exec files free help id ls mkdir\n");
         console_puts("          kill mount mem poweroff ps pwd registry reboot\n");
         console_puts("          restart rm shutdown sleep stat sync tasks touch\n");
         console_puts("          true uname uptime whoami write halt\n");
@@ -268,6 +328,8 @@ static void console_execute(void) {
         console_write_file(argument, second_argument);
     } else if (strcmp(console_line, "cp") == 0) {
         console_copy_file(argument, second_argument);
+    } else if (strcmp(console_line, "exec") == 0) {
+        console_exec(argument);
     } else if (strcmp(console_line, "cat") == 0 ||
                strcmp(console_line, "head") == 0) {
         console_cat(argument);
