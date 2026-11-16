@@ -167,9 +167,10 @@ task_t *scheduler_select_next(void) {
         scheduler_enqueue(current);
     }
 
-    /* If no ready tasks, continue the current task or use idle. */
+    /* If no ready tasks, continue a runnable current task or use idle. */
     if (!next) {
-        next = current ? current : idle_task;
+        next = current && current->state == TASK_STATE_RUNNING ?
+               current : idle_task;
     }
     
     return next;
@@ -185,10 +186,7 @@ void scheduler_block(task_t *task, const char *reason) {
     
     task->state = TASK_STATE_BLOCKED;
     
-    /* If blocking current task, we'll switch on next interrupt */
-    if (task == current_task) {
-        current_task = NULL;  /* Force selection of next task */
-    }
+    /* The timer will select another task while this task is blocked. */
 }
 
 void scheduler_unblock(task_t *task) {

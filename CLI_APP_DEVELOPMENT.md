@@ -32,7 +32,7 @@ host libc or a desktop operating system.
 | `bb_registry_set(path, value)` | Set a registry value | `BB_STATUS_OK` or negative status |
 | `bb_list_files()` | List the current VFS entries | `BB_STATUS_OK` or negative status |
 | `bb_spawn(path, argv)` | Start a process | Returns the child PID as a handle |
-| `bb_wait(process, &status)` | Poll and reap a child | `BB_STATUS_AGAIN` until the child exits |
+| `bb_wait(process, &status)` | Block and reap a child | Returns the child exit status |
 | `bb_exit(status)` | Terminate the process | Does not return |
 
 The first built-in file paths are `/etc/motd` and `/etc/system.conf`. Files can

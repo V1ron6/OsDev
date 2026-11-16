@@ -263,6 +263,8 @@ void task_destroy(task_t *task) {
 }
 
 void task_exit(task_t *task, int exit_code) {
+    task_t *parent;
+
     if (task == NULL) {
         return;
     }
@@ -272,6 +274,11 @@ void task_exit(task_t *task, int exit_code) {
     task->state = TASK_STATE_DYING;
     task->exit_code = exit_code;
     scheduler_remove(task);
+
+    parent = task_find(task->ppid);
+    if (parent != NULL && parent->state == TASK_STATE_BLOCKED) {
+        scheduler_unblock(parent);
+    }
 }
 
 void task_reap(task_t *task) {

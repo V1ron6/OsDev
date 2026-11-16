@@ -93,11 +93,10 @@ The version `0.3` user wrappers expose `bb_read`, `bb_write`, `bb_close`,
 current ByteFS namespace, creates an isolated user task, inherits the caller's
 identity, queues it for execution, and returns its PID as a `bb_handle_t`.
 The `argv` pointer is reserved for argument-vector support and is currently
-accepted but not copied. `bb_wait(process, status)` is a nonblocking child
-status poll: it returns `BB_STATUS_AGAIN` while the child is running, then
-writes the exit code, reaps the child, and returns `BB_STATUS_OK`. It returns
-`BB_STATUS_NOT_FOUND` for a non-child handle. Blocking wait and notification
-semantics remain future work. Application guidance and a complete example are in
+accepted but not copied. `bb_wait(process, status)` blocks the caller until its child exits, then writes
+the exit code, reaps the child, and returns `BB_STATUS_OK`. It returns
+`BB_STATUS_NOT_FOUND` for a non-child handle. Application guidance and a
+complete example are in
 [CLI_APP_DEVELOPMENT.md](CLI_APP_DEVELOPMENT.md).
 
 ## Serial Command Console

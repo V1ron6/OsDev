@@ -44,8 +44,8 @@ Phase 4 moves the OS from a kernel-only execution model toward a multi-process r
   `exec PATH`; user buffer checks use the active address space
 - `bb_spawn(path, argv)` now loads and queues an ELF child and returns its PID;
   `argv` is accepted but argument copying remains future work
-- `bb_wait(process, status)` now polls child state and reaps completed children;
-  it returns `BB_STATUS_AGAIN` while the child is still running
+- `bb_wait(process, status)` now blocks the parent, wakes on child exit, and
+  reaps the completed child with its exit status
 - Task exit records the exit code through the common task lifecycle path and exposes a guarded reap entry point for post-switch cleanup
 - PIT tick/time accounting and sleep support through the API layer
 - RAM-backed VFS and registry support for console and file metadata workflows

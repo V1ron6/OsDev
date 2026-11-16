@@ -133,18 +133,23 @@ int32_t syscall_wait(bb_handle_t process, int32_t *status) {
         return BB_STATUS_INVALID;
     }
 
-    child = task_find(process);
-    if (child == NULL || child->ppid != parent->pid) {
-        return BB_STATUS_NOT_FOUND;
-    }
-    if (child->state != TASK_STATE_DYING) {
-        return BB_STATUS_AGAIN;
-    }
+    for (;;) {
+        child = task_find(process);
+        if (child == NULL || child->ppid != parent->pid) {
+            return BB_STATUS_NOT_FOUND;
+        }
+        if (child->state == TASK_STATE_DYING) {
+            exit_code = child->exit_code;
+            memcpy(status, &exit_code, sizeof(exit_code));
+            task_reap(child);
+            return BB_STATUS_OK;
+        }
 
-    exit_code = child->exit_code;
-    memcpy(status, &exit_code, sizeof(exit_code));
-    task_reap(child);
-    return BB_STATUS_OK;
+        scheduler_block(parent, "wait");
+        while (child->state != TASK_STATE_DYING) {
+            halt();
+        }
+    }
 }
 
 void syscall_init(void) {

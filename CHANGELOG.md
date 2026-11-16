@@ -33,9 +33,9 @@ based on the repository history and the project progress reports.
 - Implemented the public `bb_spawn(path, argv)` syscall. It loads a ByteBandit
   ELF image from ByteFS, inherits the caller identity, queues the child, and
   returns its PID as a process handle.
-- Implemented nonblocking `bb_wait(process, status)` polling. It reports
-  `BB_STATUS_AGAIN` for running children and reaps completed children while
-  returning their exit status.
+- Implemented blocking `bb_wait(process, status)`. Waiting parents enter the
+  blocked state, child exit wakes them, and the completed child is reaped with
+  its exit status.
 - Versioned ISO generation, persistent ByteFS storage, an operator shell,
   permissions, registry persistence, syscalls, user-mode scaffolding, task
   lifecycle tracking, and scheduler bookkeeping are implemented.

@@ -101,8 +101,8 @@ The timer context-switch path now preserves privilege-transition state:
 - User syscall buffer validation now follows the active page directory.
 - Implemented `bb_spawn()` for ByteFS ELF images; child tasks inherit the
   caller identity and return their PID as the process handle.
-- Implemented nonblocking `bb_wait()` polling and child reaping; blocking wait
-  and notification semantics remain future work.
+- Implemented blocking `bb_wait()` with parent blocking, child-exit wakeup, and
+  completed-child reaping.
 
 The process-runtime work now includes:
 
