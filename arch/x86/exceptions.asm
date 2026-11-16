@@ -151,24 +151,69 @@ _exception_common:
     push fs
     push gs
     
-    ; Calculate offset to arguments on stack
-    ; Stack layout after pushes:
-    ;   [ESP+48]: EFLAGS (from CPU)
-    ;   [ESP+44]: CS (from CPU)
-    ;   [ESP+40]: EIP (from CPU)
-    ;   [ESP+36]: Error code (we pushed)
-    ;   [ESP+32]: Interrupt number (we pushed)
-    ;   [ESP+28-0]: Registers (we just pushed)
+    ; Calculate offset to arguments on stack. Eleven registers/segments were
+    ; saved above the interrupt number and error code.
+    mov eax, [esp + 44]  ; Interrupt number (first arg)
+    mov edx, [esp + 48]  ; Error code (second arg)
     
-    mov eax, [esp + 32]  ; Interrupt number (first arg)
-    mov edx, [esp + 36]  ; Error code (second arg)
-    
-    ; Call handler(int_no, err_code)
+    ; Call handler(int_no, err_code, frame)
+    push esp
     push edx
     push eax
     call exception_handler
-    add esp, 8
+    add esp, 12
+
+    ; A user-mode fault returns the next task context. Kernel faults do not
+    ; return because exception_handler() enters the panic path.
+    test eax, eax
+    jz .return_current
+
+    mov edi, eax
+    mov ecx, [edi + 40]       ; Load the next address space first.
+    test ecx, ecx
+    jz .keep_cr3
+    mov cr3, ecx
+  .keep_cr3:
+    mov eax, [edi + 32]       ; EIP
+    mov ecx, [edi + 36]       ; EFLAGS
+    mov edx, [edi + 44]       ; CS
+    test dl, 3
+    jz .build_kernel_frame
+
+    mov ebp, [edi + 24]       ; Next task's saved kernel ESP.
+    sub ebp, 20
+    mov [ebp], eax
+    mov [ebp + 4], edx
+    mov [ebp + 8], ecx
+    mov eax, [edi + 48]
+    mov [ebp + 12], eax
+    mov eax, [edi + 52]
+    mov [ebp + 16], eax
+    jmp .frame_ready
+
+  .build_kernel_frame:
+    mov ebp, [edi + 24]
+    sub ebp, 12
+    mov [ebp], eax
+    mov [ebp + 4], edx
+    mov [ebp + 8], ecx
+
+  .frame_ready:
+    mov [esp + 64], ebp
+    mov edx, [edi + 20]
+    mov [esp + 68], edx
+
+    mov eax, [edi + 0]
+    mov ebx, [edi + 4]
+    mov ecx, [edi + 8]
+    mov edx, [edi + 12]
+    mov ebp, [edi + 28]
+    mov esi, [edi + 16]
+    mov edi, [esp + 68]
+    mov esp, [esp + 64]
+    iret
     
+  .return_current:
     ; Return from exception (normally won't reach here as handler panics)
     pop gs
     pop fs

@@ -1,7 +1,7 @@
 # ByteBandit OS - Phase 4 Progress
 
-**Updated**: 2026-11-07
-**Status**: Active implementation with core kernel/user-mode scaffolding in place; scheduler queue lifecycle and timer-switch metadata hardening are in progress; preemptive user-task launch remains the final milestone
+**Updated**: 2026-11-16
+**Status**: Active implementation with preemptive context handoff and user-fault isolation in place; reproducible end-to-end ELF smoke validation is the current milestone
 
 ## Scope
 
@@ -36,6 +36,12 @@ Phase 4 moves the OS from a kernel-only execution model toward a multi-process r
 - Timer-switch bookkeeping now updates the TSS ring-0 stack pointer for the selected task
 - Timer context switching now preserves privilege-aware CS, user ESP, and user
   SS metadata and builds ring-0 or ring-3 interrupt return frames accordingly
+- User-mode CPU faults now terminate the faulting task and switch through a
+  replacement context; kernel-mode faults retain the panic path
+- Added `user/smoke.asm`, a minimal freestanding ELF workload that exits via
+  `int 0x80`; `make user-smoke` produces it for launch-path validation
+- Added `make smoke-image`, which creates a fresh persistent ByteFS image with
+  the smoke ELF installed at `/bin/smoke`
 - Syscall task exit now selects a replacement task and transfers through a
   privilege-aware return frame instead of halting indefinitely
 - Deferred reaping now removes terminated tasks after a safe context switch and
@@ -70,6 +76,22 @@ cd /workspaces/OsDev && make clean && make
 Result: the kernel, ISO image, and boot artifacts were produced successfully, and `output/bytebandit.iso` was generated. The build still emits warnings, but there were no fatal compiler or linker errors during the full build.
 
 ## Remaining Work
+
+### Current milestone: end-to-end smoke launch
+
+Build a seeded image, boot it, and issue `exec /bin/smoke` at the serial
+console. Success requires a ring-3 transition, `int 0x80` exit, scheduler
+handoff to the idle task, and deferred task cleanup without a CPU exception.
+
+```bash
+make clean && make all user-smoke smoke-image
+qemu-system-i386 -boot order=d -display none \
+  -cdrom output/bytebandit.iso \
+  -drive format=raw,file=output/bytebandit-smoke-data.img -serial stdio
+```
+
+At the `bb>` prompt, enter `exec /bin/smoke`. A CPU exception indicates that
+the milestone is not complete.
 
 The largest remaining gap is the transition from a runnable kernel skeleton into a truly safe multi-process runtime. The concrete items still open are:
 
@@ -116,11 +138,10 @@ make clean && make
 
 This preserves the production build flow defined in [Makefile](Makefile) and generates the bootable image in `output/`.
 
-Validation attempted for the latest changes on 2026-11-07:
+Validation attempted for the latest changes on 2026-11-16:
 
 ```text
 make clean && make
 ```
 
-The command was blocked before compilation because `nasm` is not installed in
-the current environment (`make: nasm: No such file or directory`).
+The command completed successfully with non-fatal compiler and linker warnings.

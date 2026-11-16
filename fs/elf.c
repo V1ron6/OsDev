@@ -10,11 +10,10 @@
 #include "mm/constants.h"
 #include "mm/pmm.h"
 #include "serial.h"
+#include "x86.h"
 #include <string.h>
 
 #define USER_ADDRESS_LIMIT 0xC0000000
-#define ELF_LOAD_SCRATCH   0x00800000
-
 static bool elf_range_valid(uint32_t offset, uint32_t length,
                             uint32_t image_size) {
     return offset <= image_size && length <= image_size - offset;
@@ -133,12 +132,20 @@ bool elf_load_segments(void *base, uint32_t image_size,
                        page_directory_t *directory,
                        uint32_t *entry_point) {
     elf_header_t *header = (elf_header_t *)base;
+    uint32_t kernel_cr3;
+    uint32_t user_cr3;
 
     if (base == NULL || directory == NULL || entry_point == NULL ||
         image_size < sizeof(elf_header_t) || !elf_validate_header(header) ||
         !elf_range_valid(header->e_phoff,
                          (uint32_t)header->e_phnum * header->e_phentsize,
                          image_size) || header->e_entry >= USER_ADDRESS_LIMIT) {
+        return false;
+    }
+
+    kernel_cr3 = read_cr3();
+    user_cr3 = paging_get_mapping((uint32_t)directory);
+    if (user_cr3 == 0) {
         return false;
     }
 
@@ -182,17 +189,15 @@ bool elf_load_segments(void *base, uint32_t image_size,
                                                flags)) {
                 return false;
             }
-            if (!paging_map_page(ELF_LOAD_SCRATCH, frame, PAGE_KERNEL)) {
-                return false;
-            }
-            memset((void *)ELF_LOAD_SCRATCH, 0, PAGE_SIZE);
+            paging_load_page_dir(user_cr3);
+            memset((void *)page_start, 0, PAGE_SIZE);
             if (copy_start < copy_end) {
-                memcpy((void *)(ELF_LOAD_SCRATCH + copy_start - page_start),
+                memcpy((void *)(page_start + copy_start - page_start),
                        (const uint8_t *)base + program->p_offset +
                        (copy_start - program->p_vaddr),
                        copy_end - copy_start);
             }
-            paging_unmap_page(ELF_LOAD_SCRATCH);
+            paging_load_page_dir(kernel_cr3);
             page_start += PAGE_SIZE;
         }
     }

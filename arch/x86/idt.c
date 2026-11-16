@@ -41,6 +41,45 @@ static struct idt_gate idt_table[IDT_ENTRIES] __attribute__((aligned(8)));
  * External linkage allows assembly to reference it.
  */
 extern void _isr_stub(void);
+extern void _isr0(void);
+extern void _isr1(void);
+extern void _isr2(void);
+extern void _isr3(void);
+extern void _isr4(void);
+extern void _isr5(void);
+extern void _isr6(void);
+extern void _isr7(void);
+extern void _isr8(void);
+extern void _isr9(void);
+extern void _isr10(void);
+extern void _isr11(void);
+extern void _isr12(void);
+extern void _isr13(void);
+extern void _isr14(void);
+extern void _isr15(void);
+extern void _isr16(void);
+extern void _isr17(void);
+extern void _isr18(void);
+extern void _isr19(void);
+extern void _isr20(void);
+extern void _isr21(void);
+extern void _isr22(void);
+extern void _isr23(void);
+extern void _isr24(void);
+extern void _isr25(void);
+extern void _isr26(void);
+extern void _isr27(void);
+extern void _isr28(void);
+extern void _isr29(void);
+extern void _isr30(void);
+extern void _isr31(void);
+
+static void (*const exception_stubs[32])(void) = {
+    _isr0, _isr1, _isr2, _isr3, _isr4, _isr5, _isr6, _isr7,
+    _isr8, _isr9, _isr10, _isr11, _isr12, _isr13, _isr14, _isr15,
+    _isr16, _isr17, _isr18, _isr19, _isr20, _isr21, _isr22, _isr23,
+    _isr24, _isr25, _isr26, _isr27, _isr28, _isr29, _isr30, _isr31
+};
 
 /* Load IDT into CPU
  *
@@ -101,6 +140,10 @@ void idt_init(void) {
      */
     for (int i = 0; i < IDT_ENTRIES; i++) {
         idt_set_gate(i, (uint32_t)_isr_stub, IDT_GATE_INTR_32, 0);
+    }
+    for (int i = 0; i < 32; i++) {
+        idt_set_gate((uint8_t)i, (uint32_t)exception_stubs[i],
+                     IDT_GATE_INTR_32, 0);
     }
     
     serial_puts("[IDT] Installed default handler stubs\n");

@@ -38,6 +38,8 @@ OUTPUT = output
 ISO_NAME ?= bytebandit.iso
 OS_IMAGE = $(OUTPUT)/$(ISO_NAME)
 PERSISTENT_DISK = $(OUTPUT)/bytebandit-data.img
+USER_SMOKE = $(OUTPUT)/bytebandit-smoke.elf
+SMOKE_DISK = $(OUTPUT)/bytebandit-smoke-data.img
 
 # Source files
 KERNEL_ASM_SOURCES = \
@@ -82,6 +84,19 @@ KERNEL_OBJ += $(BUILD)/$(ARCH)/context_asm.o
 
 # Default target
 all: $(OS_IMAGE) $(PERSISTENT_DISK)
+
+user-smoke: $(USER_SMOKE)
+
+smoke-image: $(MKDISK) $(USER_SMOKE)
+	@echo "[DISK] Creating seeded smoke image..."
+	rm -f $(SMOKE_DISK)
+	truncate -s 8M $(SMOKE_DISK)
+	$(MKDISK) $(SMOKE_DISK) $(USER_SMOKE)
+
+$(USER_SMOKE): user/smoke.asm
+	@mkdir -p $(dir $@)
+	@echo "[ASM] $<"
+	$(AS) -f bin -o $@ $<
 
 # Build bootloader
 $(BOOTLOADER): $(BOOT)/boot.asm
@@ -216,6 +231,7 @@ info:
 	@echo "  Kernel BIN: $(KERNEL_BIN)"
 	@echo "  Boot Image: $(BOOT_IMAGE)"
 	@echo "  Persistent Disk: $(PERSISTENT_DISK)"
+	@echo "  Smoke Disk: $(SMOKE_DISK)"
 	@echo "  OS Image: $(OS_IMAGE)"
 	@echo ""
 	@echo "Targets:"
@@ -223,6 +239,7 @@ info:
 	@echo "  make run    - Build and boot in QEMU with persistent disk"
 	@echo "  make debug  - Run with GDB debugging enabled"
 	@echo "  make disasm - Generate kernel disassembly"
+	@echo "  make smoke-image - Create a ByteFS image containing /bin/smoke"
 	@echo "  make clean  - Remove build artifacts"
 
-.PHONY: all run debug disasm clean info
+.PHONY: all run debug disasm smoke-image clean info user-smoke

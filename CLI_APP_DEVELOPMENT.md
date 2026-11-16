@@ -73,8 +73,10 @@ if (result > 0) {
 
 Applications must be compiled as 32-bit freestanding ELF executables and must
 provide their own startup entry point until the ByteBandit C runtime is added.
-The current kernel has ELF segment loading support, but a complete user-process
-launch path and preemptive context switch are still being completed.
+`make user-smoke` builds a minimal `output/bytebandit-smoke.elf` workload that
+exits through `int 0x80` for scheduler and syscall-path validation. Run
+`make smoke-image` to place it at `/bin/smoke` in a fresh ByteFS image, then
+boot with `output/bytebandit-smoke-data.img` and enter `exec /bin/smoke`.
 
 Version `0.3` adds Linux-style user identity tracking and VFS permission checks
 so user code can query runtime metadata and manage access on a Unix-like model

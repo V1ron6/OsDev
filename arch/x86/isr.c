@@ -23,6 +23,9 @@
 #include "panic.h"
 #include "x86.h"
 #include "types.h"
+#include "kernel/scheduler.h"
+#include "kernel/task.h"
+#include "arch/x86/tss.h"
 
 /* Exception names for diagnostic output */
 static const char *exception_names[] = {
@@ -76,7 +79,8 @@ static const char *exception_names[] = {
  * Certain exceptions (like double fault) have special handling
  * to prevent infinite exception loops.
  */
-void exception_handler(uint32_t int_no, uint32_t err_code) {
+cpu_context_t *exception_handler(uint32_t int_no, uint32_t err_code,
+                                 exception_frame_t *frame) {
     /* Disable further interrupts immediately to prevent nesting */
     disable_interrupts();
     
@@ -94,6 +98,50 @@ void exception_handler(uint32_t int_no, uint32_t err_code) {
     
     serial_printf("Exception: %d (%s)\n", int_no, exc_name);
     serial_printf("Error Code: 0x%x\n", err_code);
+
+    if (frame != NULL && (frame->cs & 0x3) != 0) {
+        task_t *current = scheduler_current();
+        task_t *next;
+
+        if (current == NULL) {
+            panic_printf("User exception without current task: %d", int_no);
+            while (1) {
+                halt();
+            }
+        }
+
+        serial_printf("[EXCEPTION] User task %u faulted at 0x%x; terminating\n",
+                      current->pid, frame->eip);
+        current->context.eax = frame->eax;
+        current->context.ebx = frame->ebx;
+        current->context.ecx = frame->ecx;
+        current->context.edx = frame->edx;
+        current->context.esi = frame->esi;
+        current->context.edi = frame->edi;
+        current->context.ebp = frame->ebp;
+        current->context.eip = frame->eip;
+        current->context.eflags = frame->eflags;
+        current->context.cr3 = read_cr3();
+        current->context.cs = frame->cs;
+        current->context.useresp = frame->useresp;
+        current->context.userss = frame->userss;
+        current->context.esp = (uint32_t)frame + 72;
+
+        task_exit(current, -(int32_t)(int_no + 1));
+        next = scheduler_select_next();
+        if (next == NULL || next == current) {
+            next = scheduler_get_idle_task();
+        }
+        if (next == NULL || next == current) {
+            panic_printf("No replacement task after user exception: %d", int_no);
+            while (1) {
+                halt();
+            }
+        }
+        scheduler_set_current(next);
+        tss_set_kernel_stack(next->kernel_stack, 0x10);
+        return &next->context;
+    }
     
     /* Additional diagnostic info for specific exceptions */
     switch (int_no) {
@@ -131,6 +179,7 @@ void exception_handler(uint32_t int_no, uint32_t err_code) {
             break;
             
         case 14: /* Page Fault */
+            serial_printf("\nFaulting address: 0x%x\n", read_cr2());
             serial_puts("\nPage Fault (paging not yet enabled, this is expected)\n");
             break;
             
